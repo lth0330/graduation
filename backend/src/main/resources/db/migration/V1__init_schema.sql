@@ -1,0 +1,1 @@
+-- 초기 DB 스키마(roles/users/managers/residents/cars/apartments/parking)
