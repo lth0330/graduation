@@ -39,5 +39,24 @@ bin/
 ### VS Code ###
 .vscode/
 
+### Node / React ###
+node_modules/
+dist/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+### Environment ###
+.gitignore
+.env
+.env.*
+!.env.example
+src/main/resources/application.properties
+
+### Logs ###
+*.log
+
 ### Mac OS ###
 .DS_Store
