@@ -1,5 +1,6 @@
 package web.aptManager.dto;
 
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -7,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import web.aptManager.entity.ApartmentEntity;
 import web.aptManager.entity.ApartmentManagerEntity;
+import web.common.type.ApprovalStatus;
 
 @Getter
 @Setter
@@ -24,6 +26,10 @@ public class SignDto {
     private String address;
     private String name;
     private String picture;
+    private ApprovalStatus approvalStatus;
+    private String rejectReason;
+    private LocalDateTime requestedAt;
+    private LocalDateTime approvedAt;
 
     public ApartmentManagerEntity toEntity(ApartmentEntity apartment) {
         return ApartmentManagerEntity.builder()
@@ -36,6 +42,10 @@ public class SignDto {
                 .address(address)
                 .name(name)
                 .picture(picture)
+                .approvalStatus(approvalStatus)
+                .rejectReason(rejectReason)
+                .requestedAt(requestedAt)
+                .approvedAt(approvedAt)
                 .build();
     }
 }

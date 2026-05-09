@@ -1,10 +1,12 @@
 package web.webAdmin.dto;
 
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import web.common.type.ApprovalStatus;
 
 @Getter
 @Setter
@@ -22,4 +24,8 @@ public class ApartmentManagerSignupListDto {
     private String address;
     private String name;
     private String picture;
+    private ApprovalStatus approvalStatus;
+    private String rejectReason;
+    private LocalDateTime requestedAt;
+    private LocalDateTime approvedAt;
 }

@@ -1,0 +1,55 @@
+테이블명	컬럼명	DB 컬럼명	타입	제약조건/기본값	설명	샘플
+apartments	아파트 번호	a_no	int	PK, auto_increment	아파트 고유 번호	1
+apartments	아파트명	a_name	varchar(30)	not null, unique	아파트 이름	테스트 아파트
+apartments	아파트 비밀번호	a_pwd	varchar(30)	not null, unique	입주민 가입 인증에 사용할 아파트 비밀번호	1111
+apartments	아파트 주소	a_address	varchar(255)	not null	아파트 기본 주소	서울시 강남구 테스트로 37
+apartments	상세 주소	a_detail_address	varchar(255)	null	관리사무소 등 상세 위치	관리사무소
+web_manager	웹 관리자 번호	w_no	int	PK, auto_increment	웹 관리자 고유 번호	1
+web_manager	웹 관리자 아이디	w_id	varchar(255)	not null, unique	웹 관리자 로그인 아이디	admin
+web_manager	웹 관리자 비밀번호	w_pwd	varchar(100)	not null, unique, bcrypt	웹 관리자 로그인 비밀번호 해시	$2a$10$...
+apartment_manager	관리자 번호	m_no	int	PK, auto_increment	아파트 관리자 고유 번호	1
+apartment_manager	아파트 번호	a_no	int	FK -> apartments.a_no	소속 아파트 번호	1
+apartment_manager	관리자 아이디	m_id	varchar(20)	not null, unique	아파트 관리자 로그인 아이디	qwe123
+apartment_manager	관리자 비밀번호	m_pwd	varchar(255)	not null, bcrypt	아파트 관리자 로그인 비밀번호 해시	$2a$10$...
+apartment_manager	관리자 이메일	m_email	varchar(255)	not null	승인/거절 메일 수신 이메일	sample1@naver.com
+apartment_manager	관리자 전화번호	m_phone	varchar(20)	null	관리자 연락처	01012345678
+apartment_manager	관리자 주소	m_address	varchar(150)	null	관리자가 근무하는 아파트 주소	서울시 강남구 테스트로 37
+apartment_manager	관리자 이름	m_name	varchar(30)	null	아파트 관리자 이름	김관리
+apartment_manager	경력증명서 이미지	picture	varchar(255)	not null	회원가입 시 제출하는 경력증명서 이미지 경로/파일명	sample-manager-1.png
+apartment_manager	승인 상태	approval_status	varchar(20)	not null	회원가입 승인 상태	PENDING
+apartment_manager	거절 사유	reject_reason	varchar(255)	null	승인 거절 시 사유	주소 확인 필요
+apartment_manager	신청 일시	requested_at	datetime	null	회원가입 신청 시간	2026-04-27 09:00:00
+apartment_manager	승인 일시	approved_at	datetime	null	웹 관리자가 승인한 시간	2026-04-27 11:30:00
+user	입주민 번호	u_no	int	PK, auto_increment	입주민 고유 번호	1
+user	입주민 아이디	u_id	varchar(20)	not null, unique	입주민 로그인 아이디	minjun12
+user	입주민 비밀번호	u_pwd	varchar(20)	not null	입주민 로그인 비밀번호	user1234
+user	입주민 이름	u_name	varchar(30)	not null	입주민 이름	김민준
+user	입주민 이메일	u_email	varchar(255)	not null	입주민 이메일	minjun12@example.com
+user	입주민 전화번호	u_phone	varchar(20)	null	입주민 연락처	01012345678
+user	가입 신청일	p_date	datetime	null	입주민 가입 신청 시간	2026-04-30 09:00:00
+user	동	u_dong	varchar(20)	not null	거주 동	101
+user	호	u_ho	varchar(20)	not null	거주 호수	1203
+user	아파트 번호	a_no	int	FK -> apartments.a_no	소속 아파트 번호	1
+user	승인 상태	approval_status	varchar(20)	not null	입주민 승인 상태	APPROVED
+user	거절 사유	reject_reason	varchar(255)	null	입주민 승인 거절 사유	세대 정보 확인 필요
+car	차량 번호	c_no	int	PK, auto_increment	차량 고유 번호	1
+car	차주명	c_name	varchar(30)	not null	입주민 이름	김민준
+car	차량 번호판	c_number	varchar(255)	not null	차량 번호	12가3456
+car	차종	c_kind	varchar(30)	null	차량 종류	SUV
+car	비고	c_note	varchar(255)	null	차량 관련 메모	방문 차량 아님
+car	등록일	c_date	datetime	null	차량 등록 시간	2026-04-30 09:20:00
+car	입주민 번호	u_no	int	FK -> user.u_no	차량 소유 입주민 번호	1
+parking_lot	주차장 번호	pl_no	int	PK, auto_increment	주차장 고유 번호	1
+parking_lot	아파트 번호	a_no	int	FK -> apartments.a_no	주차장이 속한 아파트 번호	1
+parking_lot	주차장 이름	pl_name	varchar(255)	not null	주차장 이름	지하주차장 A
+parking_lot	층	pl_floor	varchar(20)	not null	주차장 층	B1
+parking_lot	전체 주차칸 수	total_spaces	int	not null	전체 주차 가능 칸 수	120
+parking_lot	사용 중 주차칸 수	used_spaces	int	not null	현재 사용 중인 칸 수	35
+parking_zone	주차칸 번호	pz_no	int	PK, auto_increment	주차칸 고유 번호	1
+parking_zone	주차장 번호	pl_no	int	FK -> parking_lot.pl_no	소속 주차장 번호	1
+parking_zone	구역 번호	area_number	varchar(255)	not null	주차칸/구역 번호	A-01
+parking_zone	위치	location	varchar(255)	not null	주차칸 위치 설명	입구 근처
+parking_zone	상태	status	varchar(20)	not null	주차칸 상태	available
+parking_zone	배치 행	layout_row	int	null	프론트 주차장 배치용 행	1
+parking_zone	배치 열	layout_column	int	null	프론트 주차장 배치용 열	1
+parking_zone	상태 변경 사유	status_change_reason	varchar(255)	null	사용 불가 등 상태 변경 이유	공사 중

@@ -33,11 +33,19 @@ public class ApartmentEntity {
     @Column(name = "a_pwd", length = 30, nullable = false, unique = true)
     private String password;
 
+    @Column(name = "a_address", nullable = false)
+    private String address;
+
+    @Column(name = "a_detail_address")
+    private String detailAddress;
+
     public ApartmentInfoDto toDTO() {
         return ApartmentInfoDto.builder()
                 .apartmentNo(no)
                 .apartmentName(name)
                 .apartmentPassword(password)
+                .address(address)
+                .detailAddress(detailAddress)
                 .build();
     }
 }

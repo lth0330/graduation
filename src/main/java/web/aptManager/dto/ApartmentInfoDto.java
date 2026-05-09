@@ -17,12 +17,16 @@ public class ApartmentInfoDto {
     private Integer apartmentNo;
     private String apartmentName;
     private String apartmentPassword;
+    private String address;
+    private String detailAddress;
 
     public ApartmentEntity toEntity() {
         return ApartmentEntity.builder()
                 .no(apartmentNo)
                 .name(apartmentName)
                 .password(apartmentPassword)
+                .address(address)
+                .detailAddress(detailAddress)
                 .build();
     }
 }

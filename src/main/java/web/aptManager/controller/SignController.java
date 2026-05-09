@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import web.aptManager.dto.ApartmentManagerSignupRequestDto;
 import web.aptManager.dto.SignDto;
 import web.aptManager.service.SignService;
 
@@ -24,8 +25,8 @@ public class SignController {
     private final SignService signService;
 
     @PostMapping
-    public ResponseEntity<SignDto> signup(@RequestBody SignDto signDto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(signService.signup(signDto));
+    public ResponseEntity<SignDto> signup(@RequestBody ApartmentManagerSignupRequestDto requestDto) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(signService.signup(requestDto));
     }
 
     @GetMapping

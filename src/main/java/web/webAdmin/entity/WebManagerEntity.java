@@ -27,17 +27,16 @@ public class WebManagerEntity {
     @Column(name = "w_no")
     private Integer no;
 
-    @Column(name = "id", nullable = false, unique = true)
-    private String loginId;
+    @Column(name = "w_id", nullable = false, unique = true)
+    private String wId;
 
-    @Column(name = "pwd", length = 30, nullable = false, unique = true)
-    private String password;
+    @Column(name = "w_pwd", length = 100, nullable = false, unique = true)
+    private String wPwd;
 
     public WebManagerDto toDTO() {
         return WebManagerDto.builder()
                 .managerNo(no)
-                .loginId(loginId)
-                .password(password)
+                .wId(wId)
                 .build();
     }
 }

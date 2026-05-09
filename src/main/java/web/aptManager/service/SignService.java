@@ -1,16 +1,20 @@
 package web.aptManager.service;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import web.aptManager.dto.ApartmentManagerSignupRequestDto;
 import web.aptManager.dto.SignDto;
 import web.aptManager.entity.ApartmentEntity;
 import web.aptManager.entity.ApartmentManagerEntity;
 import web.aptManager.repository.ApartmentManagerRepository;
 import web.aptManager.repository.ApartmentRepository;
+import web.common.type.ApprovalStatus;
 
 @Service
 @RequiredArgsConstructor
@@ -19,16 +23,28 @@ public class SignService {
 
     private final ApartmentManagerRepository apartmentManagerRepository;
     private final ApartmentRepository apartmentRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
-    public SignDto signup(SignDto signDto) {
-        validateRequired(signDto);
-        validateDuplicate(signDto);
+    public SignDto signup(ApartmentManagerSignupRequestDto requestDto) {
+        validateSignupRequest(requestDto);
+        validateDuplicate(requestDto);
 
-        ApartmentEntity apartment = apartmentRepository.findById(signDto.getApartmentNo())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 아파트입니다."));
+        ApartmentEntity apartment = findOrCreateApartment(requestDto);
 
-        ApartmentManagerEntity savedEntity = apartmentManagerRepository.save(signDto.toEntity(apartment));
+        ApartmentManagerEntity manager = ApartmentManagerEntity.builder()
+                .apartment(apartment)
+                .loginId(requestDto.getLoginId())
+                .password(passwordEncoder.encode(requestDto.getPassword()))
+                .email(requestDto.getEmail())
+                .phone(requestDto.getPhone())
+                .address(joinAddress(requestDto.getAddress(), requestDto.getDetailAddress()))
+                .name(requestDto.getName())
+                .picture(requestDto.getCareerImage())
+                .approvalStatus(ApprovalStatus.PENDING)
+                .build();
+
+        ApartmentManagerEntity savedEntity = apartmentManagerRepository.save(manager);
         return savedEntity.toDTO();
     }
 
@@ -75,7 +91,7 @@ public class SignService {
         }
 
         if (signDto.getPassword() != null) {
-            entity.setPassword(signDto.getPassword());
+            entity.setPassword(passwordEncoder.encode(signDto.getPassword()));
         }
         if (signDto.getPhone() != null) {
             entity.setPhone(signDto.getPhone());
@@ -104,30 +120,70 @@ public class SignService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 아파트 관리자입니다."));
     }
 
-    private void validateDuplicate(SignDto signDto) {
-        if (apartmentManagerRepository.existsByLoginId(signDto.getLoginId())) {
+    private ApartmentEntity findOrCreateApartment(ApartmentManagerSignupRequestDto requestDto) {
+        return apartmentRepository.findByName(requestDto.getApartmentName())
+                .orElseGet(() -> apartmentRepository.save(ApartmentEntity.builder()
+                        .name(requestDto.getApartmentName())
+                        .password(generateApartmentPassword())
+                        .address(requestDto.getAddress())
+                        .detailAddress(requestDto.getDetailAddress())
+                        .build()));
+    }
+
+    private String generateApartmentPassword() {
+        String password;
+        do {
+            password = String.valueOf(ThreadLocalRandom.current().nextInt(100000, 1000000));
+        } while (apartmentRepository.existsByPassword(password));
+        return password;
+    }
+
+    private String joinAddress(String address, String detailAddress) {
+        if (isBlank(detailAddress)) {
+            return address;
+        }
+        return address + " " + detailAddress;
+    }
+
+    private void validateDuplicate(ApartmentManagerSignupRequestDto requestDto) {
+        if (apartmentManagerRepository.existsByLoginId(requestDto.getLoginId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다.");
         }
-        if (apartmentManagerRepository.existsByEmail(signDto.getEmail())) {
+        if (apartmentManagerRepository.existsByEmail(requestDto.getEmail())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
         }
     }
 
-    private void validateRequired(SignDto signDto) {
-        if (signDto.getApartmentNo() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "아파트 번호는 필수입니다.");
+    private void validateSignupRequest(ApartmentManagerSignupRequestDto requestDto) {
+        if (requestDto == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "가입 신청 정보를 입력해주세요.");
         }
-        if (isBlank(signDto.getLoginId())) {
+        if (isBlank(requestDto.getLoginId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "아이디는 필수입니다.");
         }
-        if (isBlank(signDto.getPassword())) {
+        if (isBlank(requestDto.getPassword())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호는 필수입니다.");
         }
-        if (isBlank(signDto.getEmail())) {
+        if (isBlank(requestDto.getEmail())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이메일은 필수입니다.");
         }
-        if (isBlank(signDto.getPicture())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "재직증명서 사진은 필수입니다.");
+        if (isBlank(requestDto.getPhone())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "전화번호는 필수입니다.");
+        }
+        if (isBlank(requestDto.getName())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "관리자 이름은 필수입니다.");
+        }
+        if (isBlank(requestDto.getApartmentName())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "아파트 이름은 필수입니다.");
+        }
+        if (isBlank(requestDto.getAddress())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "아파트 주소는 필수입니다.");
+        }
+        if (isBlank(requestDto.getDetailAddress())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "상세 주소는 필수입니다.");
+        }
+        if (isBlank(requestDto.getCareerImage())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "경력증명서 사진은 필수입니다.");
         }
     }
 

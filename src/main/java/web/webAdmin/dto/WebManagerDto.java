@@ -15,14 +15,14 @@ import web.webAdmin.entity.WebManagerEntity;
 public class WebManagerDto {
 
     private Integer managerNo;
-    private String loginId;
-    private String password;
+    private String wId;
+    private String wPwd;
 
     public WebManagerEntity toEntity() {
         return WebManagerEntity.builder()
                 .no(managerNo)
-                .loginId(loginId)
-                .password(password)
+                .wId(wId)
+                .wPwd(wPwd)
                 .build();
     }
 }

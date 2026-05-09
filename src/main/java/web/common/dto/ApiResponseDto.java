@@ -1,5 +1,25 @@
 package web.common.dto;
 
-// 공통 API 응답 형식을 정의하는 DTO 골격입니다.
-public class ApiResponseDto {
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+@Getter
+@AllArgsConstructor
+public class ApiResponseDto<T> {
+
+    private boolean success;
+    private String message;
+    private T data;
+
+    public static <T> ApiResponseDto<T> success(String message, T data) {
+        return new ApiResponseDto<>(true, message, data);
+    }
+
+    public static ApiResponseDto<Void> success(String message) {
+        return new ApiResponseDto<>(true, message, null);
+    }
+
+    public static ApiResponseDto<Void> fail(String message) {
+        return new ApiResponseDto<>(false, message, null);
+    }
 }
