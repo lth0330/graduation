@@ -19,6 +19,9 @@ public class ApartmentManagerAuthController {
 
     @PostMapping("/login")
     public ResponseEntity<ApartmentManagerLoginResponseDto> login(@RequestBody ApartmentManagerLoginRequestDto requestDto) {
-        return ResponseEntity.ok(apartmentManagerAuthService.login(requestDto));
+        ApartmentManagerLoginResponseDto responseDto = apartmentManagerAuthService.login(requestDto);
+        return ResponseEntity.ok()
+                .header("Authorization", responseDto.getTokenType() + " " + responseDto.getAccessToken())
+                .body(responseDto);
     }
 }

@@ -11,4 +11,6 @@ public class WebAdminLoginResponseDto {
 
     private Integer managerNo;
     private String wId;
+    private String tokenType;
+    private String accessToken;
 }

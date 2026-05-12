@@ -16,4 +16,6 @@ public class ApartmentManagerLoginResponseDto {
     private String loginId;
     private String name;
     private ApprovalStatus approvalStatus;
+    private String tokenType;
+    private String accessToken;
 }

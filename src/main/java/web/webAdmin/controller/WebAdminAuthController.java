@@ -19,6 +19,9 @@ public class WebAdminAuthController {
 
     @PostMapping("/login")
     public ResponseEntity<WebAdminLoginResponseDto> login(@RequestBody WebAdminLoginRequestDto requestDto) {
-        return ResponseEntity.ok(webAdminAuthService.login(requestDto));
+        WebAdminLoginResponseDto responseDto = webAdminAuthService.login(requestDto);
+        return ResponseEntity.ok()
+                .header("Authorization", responseDto.getTokenType() + " " + responseDto.getAccessToken())
+                .body(responseDto);
     }
 }
