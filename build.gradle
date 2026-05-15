@@ -21,6 +21,7 @@ repositories {
 dependencies {  // 외부 라이브러리들을 추가하는 곳, 추가된 라이브러리는 자동으로 설치된다.
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'  // 1. Spring web
     implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     runtimeOnly 'com.mysql:mysql-connector-j'        // 2] mySql
     compileOnly 'org.projectlombok:lombok'           // 3] lombok
     annotationProcessor 'org.projectlombok:lombok'   // 3] lombok
