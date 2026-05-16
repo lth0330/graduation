@@ -19,7 +19,7 @@ Base URL: `http://localhost:8080`
 | 상세 조회 | GET | `/api/apartment-managers/{managerNo}` | 없음 | `SignDto` |
 | 수정 | PUT | `/api/apartment-managers/{managerNo}` | `SignDto` | `SignDto` |
 | 삭제 | DELETE | `/api/apartment-managers/{managerNo}` | 없음 | 없음 |
-| 로그인 | POST | `/api/apartment-managers/login` | `{ "loginId": "qwe123", "password": "1234" }` | `{ "managerNo", "apartmentNo", "apartmentName", "loginId", "name", "approvalStatus" }` |
+| 로그인 | POST | `/api/apartment-managers/login` | `{ "loginId": "qwe123", "password": "qwer1234" }` | `{ "managerNo", "apartmentNo", "apartmentName", "loginId", "name", "approvalStatus" }` |
 | 마이페이지 | GET | `/api/apartment-managers/{managerNo}/my-page` | 없음 | `{ "managerNo", "loginId", "email", "phone", "name", "apartmentNo", "apartmentName", "address", "detailAddress", "apartmentPassword" }` |
 
 ## 3. 웹 관리자 - 아파트 관리자 승인
