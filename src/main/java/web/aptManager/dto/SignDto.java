@@ -19,6 +19,7 @@ public class SignDto {
 
     private Integer managerNo;
     private Integer apartmentNo;
+    private String apartmentName;
     private String loginId;
     private String password;
     private String email;

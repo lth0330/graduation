@@ -9,4 +9,6 @@ public interface ManagerInquiryRepository extends JpaRepository<ManagerInquiryEn
     List<ManagerInquiryEntity> findByManager_NoOrderByCreatedAtDesc(Integer managerNo);
 
     List<ManagerInquiryEntity> findAllByOrderByCreatedAtDesc();
+
+    long countByStatus(String status);
 }

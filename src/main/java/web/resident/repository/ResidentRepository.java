@@ -14,6 +14,8 @@ public interface ResidentRepository extends JpaRepository<ResidentEntity, Intege
 
     List<ResidentEntity> findByApartment_NoAndApprovalStatus(Integer apartmentNo, ApprovalStatus approvalStatus);
 
+    long countByApartment_NoAndApprovalStatus(Integer apartmentNo, ApprovalStatus approvalStatus);
+
     List<ResidentEntity> findByDongAndHo(String dong, String ho);
 
     boolean existsByLoginId(String loginId);

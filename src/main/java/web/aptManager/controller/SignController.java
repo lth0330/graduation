@@ -35,7 +35,7 @@ public class SignController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<SignDto> signupWithCareerImage(
             @ModelAttribute ApartmentManagerSignupRequestDto requestDto,
-            @RequestParam("careerImage") MultipartFile careerImage
+            @RequestParam("careerImageFile") MultipartFile careerImage
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(signService.signup(requestDto, careerImage));
     }

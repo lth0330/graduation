@@ -46,6 +46,7 @@ Base URL: `http://localhost:8080`
 |---|---:|---|---|---|
 | 입주민 목록 | GET | `/api/residents?apartmentNo=1` | 없음 | `ResidentManagementDto[]` |
 | 입주민 상세 | GET | `/api/residents/{residentNo}` | 없음 | `ResidentManagementDto` |
+| 입주민 등록 | POST | `/api/residents` | `{ "apartmentNo", "loginId", "password", "name", "email", "building", "unit", "phone" }` | `ResidentManagementDto` |
 | 입주민 수정 | PUT | `/api/residents/{residentNo}` | `{ "name", "email", "building", "unit", "phone" }` | `ResidentManagementDto` |
 | 입주민 삭제 | DELETE | `/api/residents/{residentNo}` | 없음 | 없음 |
 

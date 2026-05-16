@@ -123,7 +123,7 @@ public class SignService {
                 .password(passwordEncoder.encode(requestDto.getPassword()))
                 .email(requestDto.getEmail())
                 .phone(requestDto.getPhone())
-                .address(joinAddress(requestDto.getAddress(), requestDto.getDetailAddress()))
+                .address(requestDto.getAddress())
                 .name(requestDto.getName())
                 .picture(requestDto.getCareerImage())
                 .approvalStatus(ApprovalStatus.PENDING)
@@ -144,7 +144,7 @@ public class SignService {
                         .name(requestDto.getApartmentName())
                         .password(generateApartmentPassword())
                         .address(requestDto.getAddress())
-                        .detailAddress(requestDto.getDetailAddress())
+                        .detailAddress(null)
                         .build()));
     }
 
@@ -154,13 +154,6 @@ public class SignService {
             password = String.valueOf(ThreadLocalRandom.current().nextInt(100000, 1000000));
         } while (apartmentRepository.existsByPassword(password));
         return password;
-    }
-
-    private String joinAddress(String address, String detailAddress) {
-        if (isBlank(detailAddress)) {
-            return address;
-        }
-        return address + " " + detailAddress;
     }
 
     private void validateDuplicate(ApartmentManagerSignupRequestDto requestDto) {
@@ -203,9 +196,6 @@ public class SignService {
         }
         if (isBlank(requestDto.getAddress())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "address is required.");
-        }
-        if (isBlank(requestDto.getDetailAddress())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "detailAddress is required.");
         }
     }
 

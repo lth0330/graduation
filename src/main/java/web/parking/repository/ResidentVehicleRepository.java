@@ -13,6 +13,8 @@ public interface ResidentVehicleRepository extends JpaRepository<ResidentVehicle
 
     List<ResidentVehicleEntity> findByResident_Apartment_No(Integer apartmentNo);
 
+    long countByResident_Apartment_No(Integer apartmentNo);
+
     long countByResident_No(Integer residentNo);
 
     boolean existsByNumberAndNoNot(String number, Integer vehicleNo);
