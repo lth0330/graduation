@@ -33,7 +33,7 @@ public class ResidentVehicleEntity {
     @Column(name = "c_no")
     private Integer no;
 
-    @Column(name = "c_name", length = 30, nullable = false)
+    @Column(name = "c_name", length = 50)
     private String name;
 
     @Column(name = "c_number", nullable = false)

@@ -87,7 +87,7 @@ spring.sql.init.data-locations=classpath:/sql/data.sql
 spring.jpa.defer-datasource-initialization=true
 ```
 
-현재 `spring.jpa.hibernate.ddl-auto=create`를 사용하면 서버 시작 시 테이블을 새로 만들 수 있습니다.
+현재 AWS DB 기준 설정은 `spring.jpa.hibernate.ddl-auto=update`입니다. 서버 시작 시 기존 테이블을 삭제하지 않고 Entity 변경 사항을 반영합니다.
 
 ## 구현된 주요 파일
 

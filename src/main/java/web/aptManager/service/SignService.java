@@ -21,6 +21,7 @@ import web.common.type.ApprovalStatus;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 아파트 관리자 계정 서비스: 가입 신청 생성과 관리자 정보 CRUD를 처리한다.
 public class SignService {
 
     private final ApartmentManagerRepository apartmentManagerRepository;
@@ -30,6 +31,7 @@ public class SignService {
 
     @Transactional
     public SignDto signup(ApartmentManagerSignupRequestDto requestDto) {
+        // Create: 파일 경로가 포함된 가입 신청 데이터를 저장한다.
         validateSignupRequest(requestDto);
         validateDuplicate(requestDto);
 
@@ -38,6 +40,7 @@ public class SignService {
 
     @Transactional
     public SignDto signup(ApartmentManagerSignupRequestDto requestDto, MultipartFile careerImage) {
+        // Create: 업로드된 경력 이미지를 저장한 뒤 가입 신청 데이터를 저장한다.
         validateSignupRequestWithoutCareerImage(requestDto);
         validateDuplicate(requestDto);
 
@@ -48,6 +51,7 @@ public class SignService {
     }
 
     public List<SignDto> findAll() {
+        // Read: 모든 아파트 관리자 계정을 조회한다.
         return apartmentManagerRepository.findAll()
                 .stream()
                 .map(ApartmentManagerEntity::toDTO)
@@ -55,10 +59,12 @@ public class SignService {
     }
 
     public SignDto findByNo(Integer managerNo) {
+        // Read: 관리자 번호로 단건 조회한다.
         return findEntity(managerNo).toDTO();
     }
 
     public List<SignDto> findByApartmentNo(Integer apartmentNo) {
+        // Read: 특정 아파트에 소속된 관리자 목록을 조회한다.
         return apartmentManagerRepository.findByApartment_No(apartmentNo)
                 .stream()
                 .map(ApartmentManagerEntity::toDTO)
@@ -67,6 +73,7 @@ public class SignService {
 
     @Transactional
     public SignDto update(Integer managerNo, SignDto signDto) {
+        // Update: 관리자 연락처, 아파트, 비밀번호 등 수정 가능한 값을 반영한다.
         ApartmentManagerEntity entity = findEntity(managerNo);
 
         if (signDto.getApartmentNo() != null) {
@@ -110,6 +117,7 @@ public class SignService {
 
     @Transactional
     public void delete(Integer managerNo) {
+        // Delete: 관리자 계정을 삭제한다.
         ApartmentManagerEntity entity = findEntity(managerNo);
         apartmentManagerRepository.delete(entity);
     }

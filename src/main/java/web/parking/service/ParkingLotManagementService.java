@@ -17,6 +17,7 @@ import web.parking.repository.ParkingZoneRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 웹 주차장 관리 서비스: parking_lot 테이블의 조회, 등록, 삭제를 처리한다.
 public class ParkingLotManagementService {
 
     private final ParkingLotRepository parkingLotRepository;
@@ -24,6 +25,7 @@ public class ParkingLotManagementService {
     private final ApartmentRepository apartmentRepository;
 
     public List<ParkingLotDto> findParkingLots(Integer apartmentNo) {
+        // Read: 아파트 번호로 주차장 목록을 조회한다.
         return parkingLotRepository.findByApartment_No(apartmentNo)
                 .stream()
                 .map(this::toDto)
@@ -32,6 +34,7 @@ public class ParkingLotManagementService {
 
     @Transactional
     public ParkingLotDto create(ParkingLotSaveRequestDto requestDto) {
+        // Create: 아파트에 연결된 주차장 정보를 등록한다.
         validateSaveRequest(requestDto);
         ApartmentEntity apartment = apartmentRepository.findById(requestDto.getApartmentNo())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 아파트입니다."));
@@ -49,6 +52,7 @@ public class ParkingLotManagementService {
 
     @Transactional
     public void delete(Integer parkingLotNo) {
+        // Delete: 주차장과 그 안의 주차구역을 함께 삭제한다.
         ParkingLotEntity parkingLot = parkingLotRepository.findById(parkingLotNo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 주차장입니다."));
         parkingZoneRepository.deleteByParkingLot_No(parkingLotNo);

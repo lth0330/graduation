@@ -20,11 +20,13 @@ import web.inquiry.service.ManagerInquiryService;
 
 @RestController
 @RequiredArgsConstructor
+// 관리자 문의 컨트롤러: 아파트 관리자가 웹 관리자에게 보내는 문의 CRUD와 답변 처리를 담당한다.
 public class ManagerInquiryController {
 
     private final ManagerInquiryService managerInquiryService;
 
     @PostMapping("/api/manager-inquiries")
+    // Create: 아파트 관리자가 웹 관리자에게 문의를 등록한다.
     public ResponseEntity<ManagerInquiryDto> create(
             @AuthenticationPrincipal Map<String, Object> principal,
             @RequestBody ManagerInquiryCreateRequestDto requestDto
@@ -33,21 +35,25 @@ public class ManagerInquiryController {
     }
 
     @GetMapping("/api/manager-inquiries/my")
+    // Read: 로그인한 아파트 관리자의 내 문의 목록을 조회한다.
     public ResponseEntity<List<ManagerInquiryDto>> findMine(@AuthenticationPrincipal Map<String, Object> principal) {
         return ResponseEntity.ok(managerInquiryService.findMine(principal));
     }
 
     @GetMapping("/api/web-admin/inquiries")
+    // Read: 웹 관리자가 전체 관리자 문의 목록을 조회한다.
     public ResponseEntity<List<ManagerInquiryDto>> findAll() {
         return ResponseEntity.ok(managerInquiryService.findAll());
     }
 
     @GetMapping("/api/web-admin/inquiries/{inquiryNo}")
+    // Read: 관리자 문의 상세를 조회한다.
     public ResponseEntity<ManagerInquiryDto> findByNo(@PathVariable Integer inquiryNo) {
         return ResponseEntity.ok(managerInquiryService.findByNo(inquiryNo));
     }
 
     @PatchMapping("/api/web-admin/inquiries/{inquiryNo}/answer")
+    // Update: 웹 관리자가 관리자 문의에 답변한다.
     public ResponseEntity<ManagerInquiryDto> answer(
             @PathVariable Integer inquiryNo,
             @RequestBody ManagerInquiryAnswerRequestDto requestDto

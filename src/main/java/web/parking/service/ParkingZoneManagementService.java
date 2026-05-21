@@ -18,12 +18,14 @@ import web.parking.repository.ParkingZoneRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 웹 주차구역 관리 서비스: parking_zone 테이블의 슬롯 CRUD와 상태/배치 수정을 처리한다.
 public class ParkingZoneManagementService {
 
     private final ParkingZoneRepository parkingZoneRepository;
     private final ParkingLotRepository parkingLotRepository;
 
     public List<ParkingZoneDto> findParkingZones(Integer parkingLotNo) {
+        // Read: 주차장 번호로 주차구역 목록을 조회한다.
         return parkingZoneRepository.findByParkingLot_No(parkingLotNo)
                 .stream()
                 .map(this::toDto)
@@ -32,6 +34,7 @@ public class ParkingZoneManagementService {
 
     @Transactional
     public ParkingZoneDto create(ParkingZoneSaveRequestDto requestDto) {
+        // Create: 주차장에 연결된 주차구역을 등록한다.
         validateSaveRequest(requestDto);
         validateDuplicatePlacement(requestDto.getParkingLotNo(), requestDto.getLayoutRow(), requestDto.getLayoutColumn(), null);
 
@@ -51,6 +54,7 @@ public class ParkingZoneManagementService {
 
     @Transactional
     public ParkingZoneDto updateStatus(Integer parkingZoneNo, ParkingZoneStatusRequestDto requestDto) {
+        // Update: 주차구역의 점유 상태와 상태 변경 사유를 수정한다.
         if (requestDto == null || isBlank(requestDto.getStatus()) || isBlank(requestDto.getStatusChangeReason())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "상태와 변경 사유를 입력해주세요.");
         }
@@ -63,6 +67,7 @@ public class ParkingZoneManagementService {
 
     @Transactional
     public ParkingZoneDto updateLayout(Integer parkingZoneNo, ParkingZoneLayoutRequestDto requestDto) {
+        // Update: 관리자 화면에서 사용하는 주차구역 배치 좌표를 수정한다.
         if (requestDto == null || requestDto.getLayoutRow() == null || requestDto.getLayoutColumn() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "배치 행과 열을 입력해주세요.");
         }
@@ -85,6 +90,7 @@ public class ParkingZoneManagementService {
 
     @Transactional
     public void delete(Integer parkingZoneNo) {
+        // Delete: 주차구역을 삭제한다.
         parkingZoneRepository.delete(findEntity(parkingZoneNo));
     }
 

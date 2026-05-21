@@ -20,16 +20,19 @@ import web.inquiry.service.ResidentInquiryService;
 
 @RestController
 @RequiredArgsConstructor
+// 입주민 문의 컨트롤러: 입주민 문의 등록, 조회, 관리자 답변을 담당한다.
 public class ResidentInquiryController {
 
     private final ResidentInquiryService residentInquiryService;
 
     @PostMapping("/api/resident-inquiries")
+    // Create: 입주민 문의를 등록한다.
     public ResponseEntity<ResidentInquiryDto> create(@RequestBody ResidentInquiryCreateRequestDto requestDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(residentInquiryService.create(requestDto));
     }
 
     @GetMapping("/api/resident-inquiries")
+    // Read: 특정 아파트의 입주민 문의 목록을 조회한다.
     public ResponseEntity<List<ResidentInquiryDto>> findByApartment(
             @AuthenticationPrincipal Map<String, Object> principal,
             @RequestParam(required = false) Integer apartmentNo
@@ -38,6 +41,7 @@ public class ResidentInquiryController {
     }
 
     @GetMapping("/api/resident-inquiries/{inquiryNo}")
+    // Read: 입주민 문의 상세를 조회한다.
     public ResponseEntity<ResidentInquiryDto> findByNo(
             @AuthenticationPrincipal Map<String, Object> principal,
             @PathVariable Integer inquiryNo
@@ -46,6 +50,7 @@ public class ResidentInquiryController {
     }
 
     @PatchMapping("/api/resident-inquiries/{inquiryNo}/answer")
+    // Update: 아파트 관리자가 입주민 문의에 답변한다.
     public ResponseEntity<ResidentInquiryDto> answer(
             @AuthenticationPrincipal Map<String, Object> principal,
             @PathVariable Integer inquiryNo,

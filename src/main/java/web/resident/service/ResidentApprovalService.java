@@ -17,6 +17,7 @@ import web.resident.repository.ResidentRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 입주민 가입승인 서비스: 입주민 가입 요청의 조회, 승인, 거절을 처리한다.
 public class ResidentApprovalService {
 
     private final ResidentRepository residentRepository;
@@ -24,6 +25,7 @@ public class ResidentApprovalService {
     private final GmailMailService gmailMailService;
 
     public List<ResidentApprovalDto> findSignupRequests(Integer apartmentNo) {
+        // Read: 특정 아파트의 입주민 가입 요청 목록을 조회한다.
         return residentRepository.findByApartment_No(apartmentNo)
                 .stream()
                 .map(this::toApprovalDto)
@@ -31,11 +33,13 @@ public class ResidentApprovalService {
     }
 
     public ResidentApprovalDto findSignupRequest(Integer residentNo) {
+        // Read: 입주민 가입 요청 단건을 조회한다.
         return toApprovalDto(findEntity(residentNo));
     }
 
     @Transactional
     public ResidentApprovalDto approve(Integer residentNo) {
+        // Update: 입주민 가입 요청을 승인 상태로 변경한다.
         ResidentEntity resident = findEntity(residentNo);
         resident.setApprovalStatus(ApprovalStatus.APPROVED);
         resident.setRejectReason(null);
@@ -45,6 +49,7 @@ public class ResidentApprovalService {
 
     @Transactional
     public ResidentApprovalDto reject(Integer residentNo, String rejectReason) {
+        // Update: 입주민 가입 요청을 거절 상태로 변경하고 사유를 저장한다.
         if (isBlank(rejectReason)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "거절 사유를 입력해주세요.");
         }

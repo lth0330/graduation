@@ -11,11 +11,13 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
+// 파일 저장 서비스: 업로드 파일을 서버 uploads 폴더에 저장하고 접근 경로를 반환한다.
 public class FileService {
 
     private final Path uploadDir = Paths.get(System.getProperty("user.dir"), "uploads", "career-images");
 
     public String saveFile(MultipartFile file) {
+        // Create: 업로드된 파일을 고유 파일명으로 저장한다.
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "career image file is required.");
         }

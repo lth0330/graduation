@@ -16,12 +16,14 @@ import web.webAdmin.dto.ApartmentManagerSignupListDto;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 아파트 관리자 가입승인 서비스: 승인/거절 상태 변경과 알림 메일 발송을 처리한다.
 public class ApartmentManagerApprovalService {
 
     private final ApartmentManagerRepository apartmentManagerRepository;
     private final GmailMailService gmailMailService;
 
     public List<ApartmentManagerSignupListDto> findSignupRequests() {
+        // Read: 아파트 관리자 가입 요청 목록을 조회한다.
         return apartmentManagerRepository.findAll()
                 .stream()
                 .map(ApartmentManagerEntity::toSignupListDTO)
@@ -29,11 +31,13 @@ public class ApartmentManagerApprovalService {
     }
 
     public ApartmentManagerSignupListDto findSignupRequest(Integer managerNo) {
+        // Read: 가입 요청 1건을 조회한다.
         return findEntity(managerNo).toSignupListDTO();
     }
 
     @Transactional
     public ApartmentManagerSignupListDto approve(Integer managerNo) {
+        // Update: 가입 요청을 승인 상태로 변경한다.
         ApartmentManagerEntity manager = findEntity(managerNo);
         manager.setApprovalStatus(ApprovalStatus.APPROVED);
         manager.setRejectReason(null);
@@ -44,6 +48,7 @@ public class ApartmentManagerApprovalService {
 
     @Transactional
     public ApartmentManagerSignupListDto reject(Integer managerNo, String rejectReason) {
+        // Update: 가입 요청을 거절 상태로 변경하고 거절 사유를 저장한다.
         if (isBlank(rejectReason)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "거절 사유를 입력해주세요.");
         }

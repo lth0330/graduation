@@ -18,5 +18,7 @@ public interface ResidentRepository extends JpaRepository<ResidentEntity, Intege
 
     List<ResidentEntity> findByDongAndHo(String dong, String ho);
 
+    List<ResidentEntity> findByDongAndHoAndApartment_Password(String dong, String ho, String apartmentPassword);
+
     boolean existsByLoginId(String loginId);
 }

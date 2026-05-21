@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+// 메일 발송 서비스: 가입 승인/거절 결과를 사용자 이메일로 안내한다.
 public class GmailMailService {
 
     private final JavaMailSender mailSender;
@@ -22,6 +23,7 @@ public class GmailMailService {
     private String frontendUrl;
 
     public void sendApprovalMail(String toEmail, String receiverName, String targetName) {
+        // Create: 승인 안내 메일 내용을 생성해 발송한다.
         sendMail(
                 toEmail,
                 "[Park on] 승인 완료 안내",
@@ -37,6 +39,7 @@ public class GmailMailService {
     }
 
     public void sendRejectMail(String toEmail, String receiverName, String targetName, String rejectReason) {
+        // Create: 거절 사유가 포함된 안내 메일 내용을 생성해 발송한다.
         sendMail(
                 toEmail,
                 "[Park on] 신청 거절 안내",

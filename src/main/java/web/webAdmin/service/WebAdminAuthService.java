@@ -16,6 +16,7 @@ import web.webAdmin.repository.WebManagerRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 웹 최고 관리자 인증 서비스: 계정 검증 후 WEB_ADMIN 권한 토큰을 만든다.
 public class WebAdminAuthService {
 
     private final WebManagerRepository webManagerRepository;
@@ -23,6 +24,7 @@ public class WebAdminAuthService {
     private final JwtProvider jwtProvider;
 
     public WebAdminLoginResponseDto login(WebAdminLoginRequestDto requestDto) {
+        // 인증: 아이디/비밀번호를 확인하고 웹 관리자 JWT를 발급한다.
         validateLoginRequest(requestDto);
 
         WebManagerEntity webManager = webManagerRepository.findByWId(requestDto.getWId())

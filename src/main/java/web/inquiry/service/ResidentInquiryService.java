@@ -24,6 +24,7 @@ import web.resident.repository.ResidentRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 입주민 문의 서비스: 입주민 문의 등록/조회와 아파트 관리자 답변 수정을 처리한다.
 public class ResidentInquiryService {
 
     private final ResidentInquiryRepository residentInquiryRepository;
@@ -33,6 +34,7 @@ public class ResidentInquiryService {
 
     @Transactional
     public ResidentInquiryDto create(ResidentInquiryCreateRequestDto requestDto) {
+        // Create: 입주민과 차량 정보를 연결해 문의를 등록한다.
         validateCreateRequest(requestDto);
 
         ResidentEntity resident = findResident(requestDto.getResidentNo());
@@ -56,6 +58,7 @@ public class ResidentInquiryService {
     }
 
     public List<ResidentInquiryDto> findByApartment(Map<String, Object> principal, Integer apartmentNo) {
+        // Read: 관리자의 아파트 권한을 확인한 뒤 해당 아파트 문의 목록을 조회한다.
         ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
         Integer targetApartmentNo = apartmentNo != null ? apartmentNo : getApartmentNo(manager);
 
@@ -70,6 +73,7 @@ public class ResidentInquiryService {
     }
 
     public ResidentInquiryDto findByNo(Map<String, Object> principal, Integer inquiryNo) {
+        // Read: 문의 단건을 조회하고 접근 가능한 아파트인지 확인한다.
         ResidentInquiryEntity inquiry = findEntity(inquiryNo);
         ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
         validateManagerApartment(manager, inquiry);
@@ -82,6 +86,7 @@ public class ResidentInquiryService {
             Integer inquiryNo,
             ResidentInquiryAnswerRequestDto requestDto
     ) {
+        // Update: 문의 답변과 처리 상태를 저장한다.
         if (requestDto == null || isBlank(requestDto.getAnswer())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "답변 내용을 입력하세요.");
         }

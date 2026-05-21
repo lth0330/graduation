@@ -21,6 +21,7 @@ import web.resident.repository.ResidentRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 대시보드 서비스: 관리자 화면에 필요한 집계 데이터를 조회한다.
 public class DashboardService {
 
     private final ApartmentManagerRepository apartmentManagerRepository;
@@ -31,6 +32,7 @@ public class DashboardService {
     private final ResidentInquiryRepository residentInquiryRepository;
 
     public WebAdminDashboardSummaryDto getWebAdminSummary() {
+        // Read: 웹 최고 관리자에게 필요한 승인/문의 요약 수치를 계산한다.
         return WebAdminDashboardSummaryDto.builder()
                 .pendingSignupCount(apartmentManagerRepository.countByApprovalStatus(ApprovalStatus.PENDING))
                 .approvedManagerCount(apartmentManagerRepository.countByApprovalStatus(ApprovalStatus.APPROVED))
@@ -39,6 +41,7 @@ public class DashboardService {
     }
 
     public ApartmentManagerDashboardSummaryDto getApartmentManagerSummary(Map<String, Object> principal) {
+        // Read: 로그인한 아파트 관리자의 아파트 기준 입주민/차량/주차/문의 통계를 계산한다.
         Integer apartmentNo = getInteger(principal, "apartmentNo");
         List<ParkingLotEntity> parkingLots = parkingLotRepository.findByApartment_No(apartmentNo);
         int totalParkingSpaces = parkingLots.stream()

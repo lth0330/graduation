@@ -20,6 +20,7 @@ import web.resident.repository.ResidentRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 웹 입주민 관리 서비스: user 테이블의 승인된 입주민 CRUD를 처리한다.
 public class ResidentManagementService {
 
     private final ResidentRepository residentRepository;
@@ -27,6 +28,7 @@ public class ResidentManagementService {
     private final ApartmentRepository apartmentRepository;
 
     public List<ResidentManagementDto> findApprovedResidents(Integer apartmentNo) {
+        // Read: 특정 아파트의 승인된 입주민 목록을 조회한다.
         return residentRepository.findByApartment_NoAndApprovalStatus(apartmentNo, ApprovalStatus.APPROVED)
                 .stream()
                 .map(this::toManagementDto)
@@ -34,11 +36,13 @@ public class ResidentManagementService {
     }
 
     public ResidentManagementDto findResident(Integer residentNo) {
+        // Read: 입주민 단건을 조회한다.
         return toManagementDto(findEntity(residentNo));
     }
 
     @Transactional
     public ResidentManagementDto create(ResidentCreateRequestDto requestDto) {
+        // Create: 관리자가 입주민을 승인 상태로 직접 생성한다.
         validateCreateRequest(requestDto);
 
         if (residentRepository.existsByLoginId(requestDto.getLoginId())) {
@@ -65,6 +69,7 @@ public class ResidentManagementService {
 
     @Transactional
     public ResidentManagementDto update(Integer residentNo, ResidentUpdateRequestDto requestDto) {
+        // Update: 입주민 연락처와 세대 정보를 수정한다.
         ResidentEntity resident = findEntity(residentNo);
 
         if (requestDto.getName() != null) {
@@ -88,6 +93,7 @@ public class ResidentManagementService {
 
     @Transactional
     public void delete(Integer residentNo) {
+        // Delete: 입주민과 연결된 차량을 먼저 삭제한 뒤 입주민을 삭제한다.
         ResidentEntity resident = findEntity(residentNo);
         List<ResidentVehicleEntity> vehicles = residentVehicleRepository.findByResident_No(residentNo);
         residentVehicleRepository.deleteAll(vehicles);

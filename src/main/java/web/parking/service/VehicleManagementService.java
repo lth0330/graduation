@@ -17,12 +17,14 @@ import web.resident.repository.ResidentRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 웹 차량 관리 서비스: car 테이블의 입주민 차량 CRUD를 처리한다.
 public class VehicleManagementService {
 
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ResidentRepository residentRepository;
 
     public List<VehicleManagementDto> findVehicles(Integer apartmentNo) {
+        // Read: 아파트 번호로 차량 목록을 조회한다.
         return residentVehicleRepository.findByResident_Apartment_No(apartmentNo)
                 .stream()
                 .map(this::toManagementDto)
@@ -30,11 +32,13 @@ public class VehicleManagementService {
     }
 
     public VehicleManagementDto findVehicle(Integer vehicleNo) {
+        // Read: 차량 단건을 조회한다.
         return toManagementDto(findEntity(vehicleNo));
     }
 
     @Transactional
     public VehicleManagementDto create(VehicleSaveRequestDto requestDto) {
+        // Create: 승인된 입주민에 연결된 차량을 등록한다.
         validateSaveRequest(requestDto);
 
         if (residentVehicleRepository.existsByNumber(requestDto.getCarNumber())) {
@@ -55,6 +59,7 @@ public class VehicleManagementService {
 
     @Transactional
     public VehicleManagementDto update(Integer vehicleNo, VehicleSaveRequestDto requestDto) {
+        // Update: 차량 기본 정보와 소유 입주민을 수정한다.
         validateSaveRequest(requestDto);
 
         ResidentVehicleEntity vehicle = findEntity(vehicleNo);
@@ -74,6 +79,7 @@ public class VehicleManagementService {
 
     @Transactional
     public void delete(Integer vehicleNo) {
+        // Delete: 차량 단건을 삭제한다.
         residentVehicleRepository.delete(findEntity(vehicleNo));
     }
 

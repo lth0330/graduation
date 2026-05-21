@@ -20,6 +20,7 @@ import web.inquiry.repository.ManagerInquiryRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 관리자 문의 서비스: 아파트 관리자 문의 등록/조회와 웹 관리자 답변 수정을 처리한다.
 public class ManagerInquiryService {
 
     private final ManagerInquiryRepository managerInquiryRepository;
@@ -27,6 +28,7 @@ public class ManagerInquiryService {
 
     @Transactional
     public ManagerInquiryDto create(Map<String, Object> principal, ManagerInquiryCreateRequestDto requestDto) {
+        // Create: 로그인한 아파트 관리자 정보를 기준으로 문의를 등록한다.
         validateCreateRequest(requestDto);
 
         ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
@@ -42,6 +44,7 @@ public class ManagerInquiryService {
     }
 
     public List<ManagerInquiryDto> findMine(Map<String, Object> principal) {
+        // Read: 로그인한 아파트 관리자의 문의 목록을 조회한다.
         Integer managerNo = getInteger(principal, "userNo");
         return managerInquiryRepository.findByManager_NoOrderByCreatedAtDesc(managerNo)
                 .stream()
@@ -50,6 +53,7 @@ public class ManagerInquiryService {
     }
 
     public List<ManagerInquiryDto> findAll() {
+        // Read: 웹 관리자가 볼 전체 문의 목록을 조회한다.
         return managerInquiryRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
                 .map(this::toDto)
@@ -57,11 +61,13 @@ public class ManagerInquiryService {
     }
 
     public ManagerInquiryDto findByNo(Integer inquiryNo) {
+        // Read: 문의 단건을 조회한다.
         return toDto(findEntity(inquiryNo));
     }
 
     @Transactional
     public ManagerInquiryDto answer(Integer inquiryNo, ManagerInquiryAnswerRequestDto requestDto) {
+        // Update: 문의 답변과 처리 상태를 저장한다.
         if (requestDto == null || isBlank(requestDto.getAnswer())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "답변 내용을 입력해주세요.");
         }

@@ -39,7 +39,7 @@ public class ResidentEntity {
     @Column(name = "u_id", length = 20, nullable = false, unique = true)
     private String loginId;
 
-    @Column(name = "u_pwd", length = 20, nullable = false)
+    @Column(name = "u_pwd", length = 255, nullable = false)
     private String password;
 
     @Column(name = "u_name", length = 30, nullable = false)

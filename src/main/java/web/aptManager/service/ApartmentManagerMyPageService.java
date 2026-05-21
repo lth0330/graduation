@@ -13,11 +13,13 @@ import web.aptManager.repository.ApartmentManagerRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 아파트 관리자 마이페이지 서비스: 관리자 상세 정보를 읽어온다.
 public class ApartmentManagerMyPageService {
 
     private final ApartmentManagerRepository apartmentManagerRepository;
 
     public ApartmentManagerMyPageDto findMyPage(Integer managerNo) {
+        // Read: 관리자 번호로 프로필/아파트 정보를 조회한다.
         ApartmentManagerEntity manager = apartmentManagerRepository.findById(managerNo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 아파트 관리자입니다."));
 

@@ -1,10 +1,15 @@
 package web.parking.repository;
 
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import web.parking.entity.ParkingZoneEntity;
 
 public interface ParkingZoneRepository extends JpaRepository<ParkingZoneEntity, Integer> {
+
+    List<ParkingZoneEntity> findAllByOrderByNoAsc();
+
+    Optional<ParkingZoneEntity> findByAreaNumber(String areaNumber);
 
     List<ParkingZoneEntity> findByParkingLot_No(Integer parkingLotNo);
 

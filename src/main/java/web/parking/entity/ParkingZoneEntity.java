@@ -50,4 +50,7 @@ public class ParkingZoneEntity {
 
     @Column(name = "status_change_reason", length = 255)
     private String statusChangeReason;
+
+    @Column(name = "current_car_number")
+    private String currentCarNumber;
 }

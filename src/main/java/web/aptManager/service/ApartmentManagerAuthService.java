@@ -18,6 +18,7 @@ import web.common.type.UserRole;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+// 아파트 관리자 인증 서비스: 승인 상태와 비밀번호를 확인해 APARTMENT_MANAGER 토큰을 발급한다.
 public class ApartmentManagerAuthService {
 
     private final ApartmentManagerRepository apartmentManagerRepository;
@@ -25,6 +26,7 @@ public class ApartmentManagerAuthService {
     private final JwtProvider jwtProvider;
 
     public ApartmentManagerLoginResponseDto login(ApartmentManagerLoginRequestDto requestDto) {
+        // 인증: 승인된 관리자만 로그인할 수 있게 검증한다.
         validateLoginRequest(requestDto);
 
         ApartmentManagerEntity manager = apartmentManagerRepository.findByLoginId(requestDto.getLoginId())
