@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS waiting_list;
 DROP TABLE IF EXISTS settings;
 DROP TABLE IF EXISTS device_info;
 DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS parking_history;
 DROP TABLE IF EXISTS registered_cars;
 DROP TABLE IF EXISTS parking_zone;
 DROP TABLE IF EXISTS parking_lot;
@@ -130,6 +131,31 @@ CREATE TABLE registered_cars (
     PRIMARY KEY (v_no),
     CONSTRAINT fk_registered_cars_user
         FOREIGN KEY (u_no) REFERENCES `user` (u_no) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE parking_history (
+    history_id INT NOT NULL AUTO_INCREMENT,
+    pz_no INT,
+    c_no INT,
+    v_no INT,
+    history_zone VARCHAR(255) NOT NULL,
+    history_plate VARCHAR(50) NOT NULL,
+    history_entry_time DATETIME(6) NOT NULL,
+    history_exit_time DATETIME(6),
+    history_status VARCHAR(20) NOT NULL,
+    PRIMARY KEY (history_id),
+    INDEX idx_parking_history_zone (pz_no),
+    INDEX idx_parking_history_car (c_no),
+    INDEX idx_parking_history_visitor_car (v_no),
+    INDEX idx_parking_history_plate (history_plate),
+    CONSTRAINT chk_parking_history_vehicle_source
+        CHECK (NOT (c_no IS NOT NULL AND v_no IS NOT NULL)),
+    CONSTRAINT fk_parking_history_zone
+        FOREIGN KEY (pz_no) REFERENCES parking_zone (pz_no) ON DELETE SET NULL,
+    CONSTRAINT fk_parking_history_car
+        FOREIGN KEY (c_no) REFERENCES car (c_no) ON DELETE SET NULL,
+    CONSTRAINT fk_parking_history_visitor_car
+        FOREIGN KEY (v_no) REFERENCES registered_cars (v_no) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE notifications (
