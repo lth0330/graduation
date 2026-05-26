@@ -30,7 +30,7 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-
+    implementation 'com.google.firebase:firebase-admin:9.2.0'
     // implementation 'org.springframework.boot:spring-boot-starter-webflux' // Currently unused. Enable later for async external HTTP calls.
     // implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml' // Currently unused. Enable later for XML API parsing.
     // implementation 'org.springframework.security:spring-security-crypto:6.4.4' // Included by spring-boot-starter-security.
