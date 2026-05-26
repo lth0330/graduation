@@ -11,5 +11,7 @@ public interface RegisteredCarRepository extends JpaRepository<RegisteredCarEnti
 
     Optional<RegisteredCarEntity> findFirstByNumberAndParkedAtIsNull(String number);
 
+    // 👇 2번 버전에서 가져온 유용한 코드 (이 줄을 추가해 주세요!)
+    boolean existsByNumber(String number); 
     long deleteByNumberAndResident_No(String number, Integer residentNo);
 }

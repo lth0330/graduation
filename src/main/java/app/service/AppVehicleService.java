@@ -70,20 +70,19 @@ public class AppVehicleService {
         return success();
     }
 
-    @Transactional
+@Transactional
     public Map<String, Object> delete(Integer residentNo, String carNumber) {
-        // 💡 [추가] 차량 삭제 전, 해당 차량과 연결된 문의내역(resident_inquiry)의 c_no를 null로 끊어 외래키 에러를 방지합니다.
-        residentVehicleRepository.findByNumberAndResident_No(carNumber, residentNo).ifPresent(car -> {
-            residentInquiryRepository.findByVehicle_No(car.getNo()).forEach(inquiry -> {
-                inquiry.setVehicle(null);
-            });
-        });
-
+        // 입주민 차량 삭제 시도
         long deletedResidentCars = residentVehicleRepository.deleteByNumberAndResident_No(carNumber, residentNo);
-        if (deletedResidentCars > 0) return success();
+        if (deletedResidentCars > 0) {
+            return success();
+        }
 
+        // 방문 차량 삭제 시도
         long deletedVisitorCars = registeredCarRepository.deleteByNumberAndResident_No(carNumber, residentNo);
-        if (deletedVisitorCars > 0) return success();
+        if (deletedVisitorCars > 0) {
+            return success();
+        }
 
         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Car not found.");
     }
