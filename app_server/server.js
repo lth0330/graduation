@@ -3,6 +3,7 @@ const mysql = require('mysql2');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const cron = require('node-cron'); // 스케줄러 (방문자차량 24시간 로직)
 require('dotenv').config();
 
 // 👇👇 [여기에 추가!] 파이어베이스 관리자 도구 세팅 👇👇
@@ -590,6 +591,83 @@ app.post('/api/test-push', authenticateToken, (req, res) => {
                 console.error('❌ 푸시 알림 전송 실패:', error);
                 res.status(500).json({ success: false, error: error.message });
             });
+    });
+});
+// ==============================================================
+// 🚀 [스케줄러] 매분마다 순찰 돌며 방문 차량 만료 관리 및 알림 쏘기
+// ==============================================================
+cron.schedule('* * * * *', () => {
+    
+    // -------------------------------------------------------------
+    // 1. [신규 추가] 만료 임박 차량 알림 (3시간, 2시간, 1시간, 30분, 10분, 5분 전)
+    // -------------------------------------------------------------
+    const findWarningCarsQuery = `
+        SELECT r.v_no, r.c_number, r.u_no, d.fcm_token,
+               TIMESTAMPDIFF(MINUTE, NOW(), r.expire_date) AS remain_mins
+        FROM registered_cars r
+        LEFT JOIN device_info d ON r.u_no = d.u_no
+        WHERE TIMESTAMPDIFF(MINUTE, NOW(), r.expire_date) IN (180, 120, 60, 30, 10, 5)
+    `;
+
+    db.query(findWarningCarsQuery, (err, warningCars) => {
+        if (err) return console.error('❌ 임박 차량 조회 에러:', err);
+        
+        warningCars.forEach(car => {
+            // 남은 시간에 따라 'X시간' 또는 'X분'으로 글자 만들기
+            let timeText = car.remain_mins >= 60 ? `${car.remain_mins / 60}시간` : `${car.remain_mins}분`;
+
+            const msgTitle = '⏰ 방문 차량 만료 임박';
+            const msgBody = `등록하신 방문 차량(${car.c_number})의 주차 시간이 ${timeText} 남았습니다.`;
+
+            // ① 파이어베이스 푸시 알림
+            if (car.fcm_token) {
+                admin.messaging().send({
+                    notification: { title: msgTitle, body: msgBody },
+                    token: car.fcm_token
+                }).catch(e => console.error('푸시 에러:', e));
+            }
+
+            // ② 앱 내 알림 보관함 DB 저장
+            const notiQuery = `INSERT INTO notifications (u_no, noti_type, noti_title, noti_message, is_read, created_at) VALUES (?, 'visitor', ?, ?, 0, NOW())`;
+            db.query(notiQuery, [car.u_no, msgTitle, msgBody]);
+            
+            console.log(`🔔 [${car.c_number}] ${timeText} 남음 알림 전송 완료`);
+        });
+    });
+
+    // -------------------------------------------------------------
+    // 2. [기존] 만료 시간(24시간)이 100% 지나버린 차량 삭제 및 퇴장 알림
+    // -------------------------------------------------------------
+    const findExpiredQuery = `
+        SELECT r.v_no, r.c_number, r.u_no, d.fcm_token 
+        FROM registered_cars r
+        LEFT JOIN device_info d ON r.u_no = d.u_no
+        WHERE r.expire_date <= NOW()
+    `;
+
+    db.query(findExpiredQuery, (err, expiredCars) => {
+        if (err) return console.error('❌ 만료 차량 조회 에러:', err);
+        
+        expiredCars.forEach(car => {
+            const msgBody = `방문 차량(${car.c_number})의 24시간 주차가 만료되어 자동 출차 처리되었습니다.`;
+
+            // 푸시 알림
+            if (car.fcm_token) {
+                admin.messaging().send({
+                    notification: { title: '⏰ 방문 차량 만료 알림', body: msgBody },
+                    token: car.fcm_token
+                }).catch(e => console.error('푸시 에러:', e));
+            }
+
+            // 보관함 DB 저장
+            const notiQuery = `INSERT INTO notifications (u_no, noti_type, noti_title, noti_message, is_read, created_at) VALUES (?, 'visitor', '⏰ 방문 차량 만료 알림', ?, 0, NOW())`;
+            db.query(notiQuery, [car.u_no, msgBody]);
+
+            // DB에서 자동 삭제
+            db.query('DELETE FROM registered_cars WHERE v_no = ?', [car.v_no]);
+            
+            console.log(`✅ [${car.c_number}] 만료 처리 및 삭제 완료!`);
+        });
     });
 });
 app.listen(3000, () => console.log('🚀 통합 서버 실행 중: http://localhost:3000'));
