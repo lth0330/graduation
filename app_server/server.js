@@ -5,6 +5,14 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
 
+// 👇👇 [여기에 추가!] 파이어베이스 관리자 도구 세팅 👇👇
+const admin = require('firebase-admin');
+const serviceAccount = require('./firebase-key.json'); // 방금 이름 바꾼 그 파일!
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+// 👆👆 여기까지 추가 👆👆
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -298,13 +306,10 @@ app.post('/api/inquiries', authenticateToken, (req, res) => {
 // 🚀 알림 대기 신청 (에러 추적 기능 추가)
 app.post('/api/waitlist', authenticateToken, (req, res) => {
     const { target_slot_id } = req.body;
-    const query = 'INSERT INTO waiting_list (u_no, target_slot_id) VALUES (?, ?)';
+
+    const query = 'INSERT INTO waiting_list (u_no, target_slot_id, is_notified, created_at) VALUES (?, ?, 0, NOW())';
     db.query(query, [req.user.userId, target_slot_id], (err, result) => {
-        if (err) {
-            console.error("❌ 알림 대기 DB 에러:", err);
-            return res.status(500).json({ success: false, message: 'DB 저장 실패' });
-        }
-        console.log("✅ 알림 대기 신청 완료!");
+        if (err) return res.status(500).json({ success: false, message: 'DB 저장 실패' });
         res.json({ success: true });
     });
 });
@@ -395,8 +400,8 @@ app.post('/api/visitor-entry', (req, res) => {
             // 💡 2. 입주민에게 방문객 도착 알림 DB 생성하기
             // ==============================================================
             const notiQuery = `
-                INSERT INTO notifications (u_no, noti_type, noti_title, noti_message)
-                SELECT u_no, 'visitor', '🅿️ 방문객 입차 알림', CONCAT('[', ?, '] 방문객 차량이 주차장에 들어왔습니다.')
+                INSERT INTO notifications (u_no, noti_type, noti_title, noti_message, is_read, created_at)
+                SELECT u_no, 'visitor', '🅿️ 방문객 입차 알림', CONCAT('[', ?, '] 방문객 차량이 주차장에 들어왔습니다.'), 0, NOW()
                 FROM registered_cars
                 WHERE c_number = ?
                 LIMIT 1
@@ -406,6 +411,23 @@ app.post('/api/visitor-entry', (req, res) => {
                 else console.log("✅ 방문객 입차 알림 DB 저장 완료!");
             });
 
+            const tokenQuery = `
+                SELECT d.fcm_token 
+                FROM registered_cars r
+                JOIN device_info d ON r.u_no = d.u_no
+                WHERE r.c_number = ? AND d.fcm_token IS NOT NULL LIMIT 1
+            `;
+            db.query(tokenQuery, [c_number], (err, results) => {
+                if (!err && results.length > 0) {
+                    admin.messaging().send({
+                        notification: { 
+                            title: '🅿️ 방문객 입차 알림', 
+                            body: `[${c_number}] 방문객 차량이 주차장에 들어왔습니다.` 
+                        },
+                        token: results[0].fcm_token
+                    }).catch(e => console.error(e));
+                }
+            });
             // ==============================================================
             // 💡 3. [위치 수정됨!] 주차 이력(History) 테이블에 입차 기록 남기기
             // ==============================================================
@@ -433,9 +455,9 @@ app.post('/api/visitor-entry', (req, res) => {
     });
 });
 
-// 👇👇 [여기에 새로 추가!] 하드웨어(카메라)가 주차 상태 변경(선 넘음 등)을 감지했을 때 호출하는 API 👇👇
+// 👇👇 하드웨어(카메라)가 주차 상태 변경(선 넘음 등)을 감지했을 때 호출하는 API 👇👇
 app.post('/api/parking-update', (req, res) => {
-    // 하드웨어가 배열로 [{'slot': 'A-1', 'status': 'error'}, {'slot': 'A-2', 'status': 'error'}] 보낸다고 가정
+    // 하드웨어가 배열로 [{'slot': 'A-1', 'status': 'empty'}, {'slot': 'A-2', 'status': 'error'}] 보낸다고 가정
     const updates = req.body.updates; 
 
     // 받은 데이터가 없으면 종료
@@ -444,14 +466,130 @@ app.post('/api/parking-update', (req, res) => {
     }
 
     updates.forEach(data => {
-        // DB의 parking_zone 테이블 상태를 업데이트! (error, empty, occupied 등)
+        // 1. 기존 로직: DB의 parking_zone 테이블 상태를 업데이트!
         const query = 'UPDATE parking_zone SET status = ? WHERE area_number = ?';
         db.query(query, [data.status, data.slot], (err) => {
             if (err) console.error(`❌ DB 업데이트 에러 (${data.slot}):`, err);
         });
-    });
 
-    res.json({ success: true, message: '주차장 상태 업데이트 완료' });
+        // 💡 2. [핵심 추가] 빈자리가 났을 때 대기자에게 알림 보내기 로직
+        // 하드웨어가 빈자리를 'empty'로 보낸다고 가정합니다. (만약 '빈자리'로 보낸다면 문자열을 수정하세요)
+        if (data.status === 'empty') {
+            
+// 💡 1. [수정] DB에 알림을 저장하려면 그 사람의 입주민 번호(u_no)가 필요해서 SELECT에 추가했습니다!
+            const waitQuery = `
+                SELECT w.wait_no, w.u_no, d.fcm_token 
+                FROM waiting_list w
+                JOIN device_info d ON w.u_no = d.u_no
+                WHERE (w.target_slot_id = ? OR w.target_slot_id = 'ALL')
+                  AND w.is_notified = 0
+                  AND d.fcm_token IS NOT NULL
+            `;
+
+db.query(waitQuery, [data.slot], (err, waitingUsers) => {
+                if (err) return console.error('대기열 조회 에러:', err);
+
+                waitingUsers.forEach(user => {
+                    const message = {
+                        notification: {
+                            title: '🔔 빈자리 알림',
+                            body: `대기하시던 [${data.slot}] 구역에 빈자리가 생겼습니다! 먼저 주차하세요.`
+                        },
+                        token: user.fcm_token
+                    };
+
+                    admin.messaging().send(message)
+                        .then(() => {
+                            console.log(`✅ [${data.slot}] 빈자리 알림 전송 완료`);
+                            
+                           // 대기열 완료 처리
+                            db.query('UPDATE waiting_list SET is_notified = 1 WHERE wait_no = ?', [user.wait_no]);
+
+                            // 💡 2. [핵심 추가] 푸시 알림을 보낸 직후, 알림 보관함(notifications 테이블)에도 이력을 남깁니다!
+                            const notiQuery = `
+                                INSERT INTO notifications (u_no, noti_type, noti_title, noti_message, is_read, created_at) 
+                                VALUES (?, 'system', '🔔 빈자리 알림', ?, 0, NOW())
+                            `;
+                            db.query(notiQuery, [user.u_no, `대기하시던 [${data.slot}] 구역에 빈자리가 생겼습니다! 먼저 주차하세요.`]);
+                            
+                        })
+                        .catch(error => console.error('❌ 알림 전송 실패:', error));
+                });
+            });
+        }
+        // 👇👇 [여기에 1번 코드 추가!] 👇👇
+        else if ((data.status === 'occupied' || data.status === '사용중') && data.car_number) {
+            
+            // 주차한 차량이 입주민(car) 차량인지 방문객(registered_cars) 차량인지 모두 뒤져서 차주(u_no)를 찾습니다.
+            const findOwnerQuery = `
+                SELECT u.u_no, d.fcm_token 
+                FROM (
+                    SELECT u_no FROM car WHERE c_number = ?
+                    UNION
+                    SELECT u_no FROM registered_cars WHERE c_number = ?
+                ) AS owners
+                JOIN user u ON owners.u_no = u.u_no
+                JOIN device_info d ON u.u_no = d.u_no
+                WHERE d.fcm_token IS NOT NULL
+                LIMIT 1
+            `;
+
+            db.query(findOwnerQuery, [data.car_number, data.car_number], (err, results) => {
+                if (err || results.length === 0) return; // 차주를 못 찾거나 토큰이 없으면 패스
+
+                const owner = results[0];
+                const msgBody = `[${data.slot}] 구역에 차량(${data.car_number}) 주차가 완료되었습니다.`;
+
+               // 파이어베이스로 스마트폰 상단바 푸시 알림 전송
+                admin.messaging().send({
+                    notification: { title: '🅿️ 주차 완료 알림', body: msgBody },
+                    token: owner.fcm_token
+                }).catch(e => console.error(e));
+
+                // 앱 안의 알림 보관함(DB)에도 기록 저장
+                const notiQuery = `INSERT INTO notifications (u_no, noti_type, noti_title, noti_message, is_read, created_at) VALUES (?, 'system', '🅿️ 주차 완료 알림', ?, 0, NOW())`;
+                db.query(notiQuery, [owner.u_no, msgBody]);
+            });
+        }
+        // 👆👆 여기까지 추가 👆👆
+    });
+    res.json({ success: true, message: '주차장 상태 업데이트 및 알림 처리 완료' });
 });
-// 👆👆 여기까지 추가 👆👆
+
+// 🚀 [푸시 알림 테스트 API] 앱에서 이 주소로 찌르면 내 폰으로 알림이 옵니다!
+app.post('/api/test-push', authenticateToken, (req, res) => {
+    const u_no = req.user.userId; // 현재 로그인한 사람의 번호
+
+    // 1. DB(device_info)에서 내 스마트폰의 주소(FCM 토큰)를 꺼내옵니다.
+    const query = 'SELECT fcm_token FROM device_info WHERE u_no = ?';
+    
+    db.query(query, [u_no], (err, results) => {
+        if (err || results.length === 0 || !results[0].fcm_token) {
+            console.log("❌ 토큰이 없거나 DB 에러");
+            return res.status(404).json({ success: false, message: 'FCM 토큰을 찾을 수 없습니다.' });
+        }
+
+        const myToken = results[0].fcm_token;
+
+        // 2. 파이어베이스 서버로 전송할 "알림 편지"를 작성합니다.
+        const message = {
+            notification: {
+                title: '테스트 알림입니다 🚀',
+                body: 'server.js에서 보낸 푸시 알림이 내 폰으로 무사히 도착했네요!'
+            },
+            token: myToken // 받을 사람의 주소
+        };
+
+        // 3. 파이어베이스 서버로 발송 명령! (Send)
+        admin.messaging().send(message)
+            .then((response) => {
+                console.log('✅ 푸시 알림 전송 성공:', response);
+                res.json({ success: true, message: '알림 발송 성공!' });
+            })
+            .catch((error) => {
+                console.error('❌ 푸시 알림 전송 실패:', error);
+                res.status(500).json({ success: false, error: error.message });
+            });
+    });
+});
 app.listen(3000, () => console.log('🚀 통합 서버 실행 중: http://localhost:3000'));
