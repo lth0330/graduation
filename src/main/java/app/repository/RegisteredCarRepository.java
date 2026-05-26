@@ -11,5 +11,7 @@ public interface RegisteredCarRepository extends JpaRepository<RegisteredCarEnti
 
     Optional<RegisteredCarEntity> findFirstByNumberAndParkedAtIsNull(String number);
 
+    boolean existsByNumber(String number);
+
     long deleteByNumberAndResident_No(String number, Integer residentNo);
 }
