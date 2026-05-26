@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/apartments").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/app/parking-zones").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        // Python 객체인식/FastAPI 연동 API는 장비 서버에서 토큰 없이 호출한다.
+                        .requestMatchers(path("/api/parking/**")).permitAll()
                         // 앱 입주민 기능은 RESIDENT 권한의 JWT가 있어야 사용할 수 있다.
                         .requestMatchers(HttpMethod.GET, "/api/user-info").hasRole("RESIDENT")
                         .requestMatchers(path("/api/cars/**")).hasRole("RESIDENT")
