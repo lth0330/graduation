@@ -60,6 +60,3 @@ src/main/resources/application.properties
 
 ### Mac OS ###
 .DS_Store
-
-### firebase ###
-firebase-key.json
