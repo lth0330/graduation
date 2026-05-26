@@ -25,7 +25,9 @@ public class SecurityConfig {
     public WebSecurityCustomizer webSecurityCustomizer() {
         return web -> web.ignoring()
                 .requestMatchers(path("/api/parking/**"))
-                .requestMatchers(path("/api/gate/**"));
+                .requestMatchers(path("/api/gate/**"))
+                .requestMatchers(path("/api/check-plate"))
+                .requestMatchers(path("/api/entry-log"));
     }
 
     @Bean
@@ -59,7 +61,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/parking/exit").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/parking/update-plate").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/gate/check").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/check-plate").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/gate/log").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/entry-log").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/gate/unmatched").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/gate/assign-plate").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/gate/alert").permitAll()
