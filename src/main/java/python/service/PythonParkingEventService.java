@@ -43,6 +43,11 @@ public class PythonParkingEventService {
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
 
+    private final AppNotificationRepository notificationRepository;
+    private final DeviceInfoRepository deviceInfoRepository;
+    private final WaitingListRepository waitingListRepository;
+    private final FcmService fcmService;
+
     public List<Map<String, String>> findCarNumbers() {
         Set<String> carNumbers = new LinkedHashSet<>();
         residentVehicleRepository.findAll().forEach(vehicle -> addCarNumber(carNumbers, vehicle.getNumber()));
@@ -95,6 +100,21 @@ public class PythonParkingEventService {
                 .build();
 
         parkingHistoryRepository.save(history);
+        // 💡 [추가] 주차 완료 FCM 푸시 알림 발송
+    ResidentEntity owner = null;
+    if (residentVehicle != null) owner = residentVehicle.getResident();
+    else if (visitorVehicle != null) owner = visitorVehicle.getResident();
+
+    if (owner != null) {
+        String msg = "[" + zone.getAreaNumber() + "] 구역에 차량(" + plate + ") 주차가 완료되었습니다.";
+        ResidentEntity finalOwner = owner;
+        
+        notificationRepository.save(AppNotificationEntity.builder()
+                .resident(finalOwner).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
+
+        deviceInfoRepository.findByResident_No(finalOwner.getNo())
+                .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
+    }
         return result("entry", zone, history);
     }
 
@@ -111,7 +131,19 @@ public class PythonParkingEventService {
         zone.setStatus(STATUS_EMPTY);
         zone.setCurrentCarNumber(null);
         zone.setStatusChangeReason("Python 객체인식 출차 이벤트");
+// 💡 [추가] 빈자리 발생 FCM 대기자 푸시 알림 발송
+        waitingListRepository.findAll().stream()
+            .filter(w -> !w.getNotified() && (w.getTargetSlotId().equals("ALL") || w.getTargetSlotId().equals(zone.getAreaNumber())))
+            .forEach(w -> {
+                w.setNotified(true); // 알림 발송 완료 처리
+                String msg = "대기하시던 [" + zone.getAreaNumber() + "] 구역에 빈자리가 생겼습니다! 먼저 주차하세요.";
+                
+                notificationRepository.save(AppNotificationEntity.builder()
+                        .resident(w.getResident()).type("system").title("🔔 빈자리 알림").message(msg).read(false).build());
 
+                deviceInfoRepository.findByResident_No(w.getResident().getNo())
+                        .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 빈자리 알림", msg));
+            });
         return result("exit", zone, history);
     }
 
