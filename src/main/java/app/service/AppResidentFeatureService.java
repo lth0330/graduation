@@ -204,8 +204,12 @@ public class AppResidentFeatureService {
                             notificationRepository.save(AppNotificationEntity.builder()
                                     .resident(w.getResident()).type("system").title("🔔 빈자리 알림").message(msg).read(false).build());
 
-                            deviceInfoRepository.findByResident_No(w.getResident().getNo())
-                                    .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 빈자리 알림", msg));
+        boolean isPushOn = settingRepository.findByDeviceId("device_" + w.getResident().getNo())
+        .map(AppSettingEntity::getAlertPush).orElse(true);
+           if (isPushOn) {
+            deviceInfoRepository.findByResident_No(w.getResident().getNo())
+            .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 빈자리 알림", msg));
+}
                         });
                 } 
                 // 💡 2. 주차 완료 시 차주에게 알림 발송 (차량 번호가 전달된 경우)
@@ -215,8 +219,13 @@ public class AppResidentFeatureService {
                         notificationRepository.save(AppNotificationEntity.builder()
                                 .resident(car.getResident()).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
 
-                        deviceInfoRepository.findByResident_No(car.getResident().getNo())
-                                .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
+// 👇 [이렇게 변경해 주세요] 👇
+boolean isPushOn2 = settingRepository.findByDeviceId("device_" + car.getResident().getNo())
+        .map(AppSettingEntity::getAlertPush).orElse(true);
+if (isPushOn2) {
+    deviceInfoRepository.findByResident_No(car.getResident().getNo())
+            .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
+}
                     });
                 }
             });

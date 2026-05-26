@@ -21,6 +21,8 @@ public class VisitorCarScheduler {
     private final AppNotificationRepository notificationRepository;
     private final DeviceInfoRepository deviceInfoRepository;
     private final FcmService fcmService;
+    private final app.repository.AppSettingRepository settingRepository;
+
 
     // 매 1분마다 실행
     @Scheduled(cron = "0 * * * * *")
@@ -53,8 +55,8 @@ public class VisitorCarScheduler {
         }
     }
 
-    private void sendNotificationAndPush(RegisteredCarEntity car, String title, String body) {
-        // DB 알림 보관함 저장
+private void sendNotificationAndPush(RegisteredCarEntity car, String title, String body) {
+        // DB 알림 보관함 저장 (무조건 저장)
         notificationRepository.save(AppNotificationEntity.builder()
                 .resident(car.getResident())
                 .type("visitor")
@@ -63,9 +65,15 @@ public class VisitorCarScheduler {
                 .read(false)
                 .build());
 
-        // FCM 푸시 발송
-        deviceInfoRepository.findByResident_No(car.getResident().getNo()).forEach(device -> {
-            fcmService.sendPush(device.getFcmToken(), title, body);
-        });
+        // 👇 FCM 푸시 발송 (설정이 ON일 때만 폰으로 발송)
+        Integer residentNo = car.getResident().getNo();
+        boolean isPushOn = settingRepository.findByDeviceId("device_" + residentNo)
+                .map(app.entity.AppSettingEntity::getAlertPush)
+                .orElse(true);
+
+        if (isPushOn) {
+            deviceInfoRepository.findByResident_No(residentNo).forEach(device -> {
+                fcmService.sendPush(device.getFcmToken(), title, body);
+            });
+        }
     }
-}
