@@ -148,8 +148,6 @@ CREATE TABLE parking_history (
     INDEX idx_parking_history_car (c_no),
     INDEX idx_parking_history_visitor_car (v_no),
     INDEX idx_parking_history_plate (history_plate),
-    CONSTRAINT chk_parking_history_vehicle_source
-        CHECK (NOT (c_no IS NOT NULL AND v_no IS NOT NULL)),
     CONSTRAINT fk_parking_history_zone
         FOREIGN KEY (pz_no) REFERENCES parking_zone (pz_no) ON DELETE SET NULL,
     CONSTRAINT fk_parking_history_car
