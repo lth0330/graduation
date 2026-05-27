@@ -20,26 +20,31 @@ public class PythonParkingEventController {
 
     private final PythonParkingEventService pythonParkingEventService;
 
+    // Python 번호판 보정용으로 DB에 등록된 차량번호 목록을 내려준다.
     @GetMapping("/api/parking/cars")
     public ResponseEntity<List<Map<String, String>>> findCarNumbers() {
         return ResponseEntity.ok(pythonParkingEventService.findCarNumbers());
     }
 
+    // 특정 주차칸의 현재 상태와 차량번호를 조회한다.
     @GetMapping("/api/parking/zone/{zoneName}")
     public ResponseEntity<Map<String, Object>> findZoneStatus(@PathVariable String zoneName) {
         return ResponseEntity.ok(pythonParkingEventService.findZoneStatus(zoneName));
     }
 
+    // Python이 입차 이벤트를 보내면 주차칸 상태와 주차 이력을 저장한다.
     @PostMapping("/api/parking/entry")
     public ResponseEntity<Map<String, Object>> saveEntry(@RequestBody PythonParkingEntryRequestDto requestDto) {
         return ResponseEntity.ok(pythonParkingEventService.saveEntry(requestDto));
     }
 
+    // Python이 출차 이벤트를 보내면 주차 이력을 종료하고 주차칸을 비운다.
     @PostMapping("/api/parking/exit")
     public ResponseEntity<Map<String, Object>> saveExit(@RequestBody PythonParkingExitRequestDto requestDto) {
         return ResponseEntity.ok(pythonParkingEventService.saveExit(requestDto));
     }
 
+    // 입차 후 번호판이 새로 확인되면 기존 주차 기록의 번호판을 갱신한다.
     @PostMapping("/api/parking/update-plate")
     public ResponseEntity<Map<String, Object>> updatePlate(@RequestBody PythonParkingPlateUpdateRequestDto requestDto) {
         return ResponseEntity.ok(pythonParkingEventService.updatePlate(requestDto));

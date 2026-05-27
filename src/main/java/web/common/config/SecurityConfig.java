@@ -24,6 +24,7 @@ public class SecurityConfig {
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return web -> web.ignoring()
+                // Python/FastAPI 장비가 호출하는 API는 JWT 필터를 거치지 않도록 제외한다.
                 .requestMatchers(path("/api/parking/**"))
                 .requestMatchers(path("/api/gate/**"))
                 .requestMatchers(path("/api/check-plate"))

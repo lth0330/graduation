@@ -1,6 +1,9 @@
 package python.service;
 
 import app.repository.RegisteredCarRepository;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import python.entity.GateEntryLogEntity;
+import python.repository.GateEntryLogRepository;
 import web.parking.entity.ParkingHistoryEntity;
 import web.parking.entity.ParkingZoneEntity;
 import web.parking.entity.ResidentVehicleEntity;
@@ -23,11 +28,14 @@ public class PythonGateService {
 
     private static final String HISTORY_PARKED = "PARKED";
     private static final String UNKNOWN_PLATE = "UNKNOWN";
+    private static final DateTimeFormatter PYTHON_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
     private final ParkingHistoryRepository parkingHistoryRepository;
+    private final GateEntryLogRepository gateEntryLogRepository;
 
+    // 주민 차량과 방문 차량 테이블을 모두 확인해서 차단기 개방 여부 판단에 필요한 값을 만든다.
     public Map<String, Object> checkPlate(String plate) {
         String normalizedPlate = normalizePlate(plate);
         boolean isRegistered = normalizedPlate != null
@@ -41,21 +49,36 @@ public class PythonGateService {
     }
 
     @Transactional
+    // 차단기 통과 기록을 gate_entry_log 테이블에 저장한다.
     public Map<String, Object> saveGateLog(Map<String, Object> request) {
-        String plate = firstText(request, "gate_plate", "c_number", "plate");
+        String plate = normalizePlate(firstText(request, "gate_plate", "c_number", "plate"));
+        if (plate == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "plate or c_number is required.");
+        }
+
         boolean isResident = firstBoolean(request, "gate_is_resident", "is_resident");
-        boolean gateOpen = firstBoolean(request, "gate_open");
+        boolean gateOpen = firstBoolean(request, "gate_open") || isResident;
+        LocalDateTime gateTime = parseDateTime(firstText(request, "gate_time", "entry_time", "time"));
+
+        GateEntryLogEntity savedLog = gateEntryLogRepository.save(GateEntryLogEntity.builder()
+                .plate(plate)
+                .resident(isResident)
+                .gateOpen(gateOpen)
+                .gateTime(gateTime)
+                .build());
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("result", "ok");
-        response.put("plate", normalizePlate(plate));
+        response.put("log_no", savedLog.getLogNo());
+        response.put("plate", savedLog.getPlate());
         response.put("is_resident", isResident);
-        response.put("gate_open", gateOpen || isResident);
-        response.put("saved", false);
-        response.put("message", "gate_entry_log 테이블 없이 요청 수신만 처리했습니다.");
+        response.put("gate_open", gateOpen);
+        response.put("gate_time", savedLog.getGateTime());
+        response.put("saved", true);
         return response;
     }
 
+    // 번호판이 UNKNOWN인 진행 중 주차 기록을 찾아 차단기 인식 결과와 매칭할 수 있게 한다.
     public List<Map<String, Object>> findUnmatchedHistories() {
         List<ParkingHistoryEntity> histories = parkingHistoryRepository
                 .findByPlateAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(UNKNOWN_PLATE, HISTORY_PARKED);
@@ -72,6 +95,7 @@ public class PythonGateService {
     }
 
     @Transactional
+    // 차단기에서 확인한 번호판을 기존 주차 이력과 주차칸 상태에 반영한다.
     public Map<String, Object> assignPlate(Map<String, Object> request) {
         Integer historyId = firstInteger(request, "history_id");
         String plate = normalizePlate(firstText(request, "plate", "c_number", "gate_plate"));
@@ -104,6 +128,7 @@ public class PythonGateService {
         return response;
     }
 
+    // 현재는 double_park_alert 테이블이 없어서 요청 수신 여부만 응답한다.
     public Map<String, Object> saveDoubleParkingAlert(Map<String, Object> request) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("result", "ok");
@@ -136,6 +161,17 @@ public class PythonGateService {
             return "";
         }
         return plate.replaceAll("\\s+", "");
+    }
+
+    private LocalDateTime parseDateTime(String value) {
+        if (value == null || value.isBlank()) {
+            return LocalDateTime.now();
+        }
+        try {
+            return LocalDateTime.parse(value, PYTHON_DATE_TIME);
+        } catch (DateTimeParseException ignored) {
+            return LocalDateTime.parse(value);
+        }
     }
 
     private ResidentVehicleEntity findResidentVehicle(String plate) {

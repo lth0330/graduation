@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS waiting_list;
 DROP TABLE IF EXISTS settings;
 DROP TABLE IF EXISTS device_info;
 DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS gate_entry_log;
 DROP TABLE IF EXISTS parking_history;
 DROP TABLE IF EXISTS registered_cars;
 DROP TABLE IF EXISTS parking_zone;
@@ -148,14 +149,23 @@ CREATE TABLE parking_history (
     INDEX idx_parking_history_car (c_no),
     INDEX idx_parking_history_visitor_car (v_no),
     INDEX idx_parking_history_plate (history_plate),
-    CONSTRAINT chk_parking_history_vehicle_source
-        CHECK (NOT (c_no IS NOT NULL AND v_no IS NOT NULL)),
     CONSTRAINT fk_parking_history_zone
         FOREIGN KEY (pz_no) REFERENCES parking_zone (pz_no) ON DELETE SET NULL,
     CONSTRAINT fk_parking_history_car
         FOREIGN KEY (c_no) REFERENCES car (c_no) ON DELETE SET NULL,
     CONSTRAINT fk_parking_history_visitor_car
         FOREIGN KEY (v_no) REFERENCES registered_cars (v_no) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE gate_entry_log (
+    log_no INT NOT NULL AUTO_INCREMENT,
+    gate_plate VARCHAR(20) NOT NULL,
+    gate_is_resident TINYINT(1) DEFAULT 0,
+    gate_open TINYINT(1) DEFAULT 0,
+    gate_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (log_no),
+    INDEX idx_gate_entry_log_plate (gate_plate),
+    INDEX idx_gate_entry_log_time (gate_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE notifications (
