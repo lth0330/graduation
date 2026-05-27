@@ -43,6 +43,7 @@ public class PythonParkingEventService {
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
 
+    // Python 번호판 보정에서 사용할 등록 차량번호 목록을 주민/방문 차량에서 함께 조회한다.
     public List<Map<String, String>> findCarNumbers() {
         Set<String> carNumbers = new LinkedHashSet<>();
         residentVehicleRepository.findAll().forEach(vehicle -> addCarNumber(carNumbers, vehicle.getNumber()));
@@ -53,6 +54,7 @@ public class PythonParkingEventService {
         return response;
     }
 
+    // Python이 특정 주차칸의 현재 상태를 확인할 때 사용한다.
     public Map<String, Object> findZoneStatus(String zoneName) {
         ParkingZoneEntity zone = findZone(zoneName);
 
@@ -64,6 +66,7 @@ public class PythonParkingEventService {
     }
 
     @Transactional
+    // 입차 이벤트를 받으면 주차칸을 occupied로 바꾸고 parking_history에 시작 기록을 만든다.
     public Map<String, Object> saveEntry(PythonParkingEntryRequestDto requestDto) {
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
@@ -99,6 +102,7 @@ public class PythonParkingEventService {
     }
 
     @Transactional
+    // 출차 이벤트를 받으면 진행 중인 주차 기록을 종료하고 주차칸을 empty로 되돌린다.
     public Map<String, Object> saveExit(PythonParkingExitRequestDto requestDto) {
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
@@ -116,6 +120,7 @@ public class PythonParkingEventService {
     }
 
     @Transactional
+    // 번호판이 나중에 인식된 경우 UNKNOWN으로 저장된 기록을 실제 번호판으로 갱신한다.
     public Map<String, Object> updatePlate(PythonParkingPlateUpdateRequestDto requestDto) {
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
