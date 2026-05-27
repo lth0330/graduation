@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -19,6 +20,15 @@ import web.common.auth.JwtAuthenticationFilter;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return web -> web.ignoring()
+                .requestMatchers(path("/api/parking/**"))
+                .requestMatchers(path("/api/gate/**"))
+                .requestMatchers(path("/api/check-plate"))
+                .requestMatchers(path("/api/entry-log"));
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -45,7 +55,20 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/app/parking-zones").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                         // Python 객체인식/FastAPI 연동 API는 장비 서버에서 토큰 없이 호출한다.
+                        .requestMatchers(HttpMethod.GET, "/api/parking/cars").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/parking/zone/{zoneName}").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/parking/entry").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/parking/exit").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/parking/update-plate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/gate/check").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/check-plate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/gate/log").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/entry-log").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/gate/unmatched").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/gate/assign-plate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/gate/alert").permitAll()
                         .requestMatchers(path("/api/parking/**")).permitAll()
+                        .requestMatchers(path("/api/gate/**")).permitAll()
                         // 앱 입주민 기능은 RESIDENT 권한의 JWT가 있어야 사용할 수 있다.
                         .requestMatchers(HttpMethod.GET, "/api/user-info").hasRole("RESIDENT")
                         .requestMatchers(path("/api/cars/**")).hasRole("RESIDENT")

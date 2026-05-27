@@ -15,4 +15,6 @@ public interface ParkingHistoryRepository extends JpaRepository<ParkingHistoryEn
             Integer parkingZoneNo,
             String status
     );
+
+    List<ParkingHistoryEntity> findByPlateAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(String plate, String status);
 }

@@ -8,7 +8,6 @@ import app.entity.RegisteredCarEntity;
 public interface RegisteredCarRepository extends JpaRepository<RegisteredCarEntity, Integer> {
 
     List<RegisteredCarEntity> findByResident_No(Integer residentNo);
-
     Optional<RegisteredCarEntity> findFirstByNumberAndParkedAtIsNull(String number);
 
     // 👇 2번 버전에서 가져온 유용한 코드 (이 줄을 추가해 주세요!)
