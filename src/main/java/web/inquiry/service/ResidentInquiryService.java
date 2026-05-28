@@ -16,6 +16,7 @@ import web.inquiry.dto.ResidentInquiryCreateRequestDto;
 import web.inquiry.dto.ResidentInquiryDto;
 import web.inquiry.entity.ResidentInquiryEntity;
 import web.inquiry.repository.ResidentInquiryRepository;
+import web.notification.service.ManagerNotificationService;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
@@ -31,6 +32,7 @@ public class ResidentInquiryService {
     private final ResidentRepository residentRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ApartmentManagerRepository apartmentManagerRepository;
+    private final ManagerNotificationService managerNotificationService;
 
     @Transactional
     public ResidentInquiryDto create(ResidentInquiryCreateRequestDto requestDto) {
@@ -54,7 +56,18 @@ public class ResidentInquiryService {
                 .status("pending")
                 .build();
 
-        return toDto(residentInquiryRepository.save(inquiry));
+        ResidentInquiryEntity savedInquiry = residentInquiryRepository.save(inquiry);
+        ApartmentEntity apartment = resident.getApartment();
+        managerNotificationService.createApartmentNotification(
+                apartment,
+                "resident_inquiry",
+                "새 입주민 문의",
+                "입주민 문의가 새로 등록되었습니다.",
+                "resident_inquiry",
+                savedInquiry.getNo()
+        );
+
+        return toDto(savedInquiry);
     }
 
     public List<ResidentInquiryDto> findByApartment(Map<String, Object> principal, Integer apartmentNo) {
