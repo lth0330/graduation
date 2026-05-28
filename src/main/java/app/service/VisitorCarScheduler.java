@@ -55,7 +55,7 @@ public class VisitorCarScheduler {
         }
     }
 
-private void sendNotificationAndPush(RegisteredCarEntity car, String title, String body) {
+    private void sendNotificationAndPush(RegisteredCarEntity car, String title, String body) {
         // DB 알림 보관함 저장 (무조건 저장)
         notificationRepository.save(AppNotificationEntity.builder()
                 .resident(car.getResident())

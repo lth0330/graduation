@@ -29,7 +29,7 @@ public class AppParkingService {
 
     private Map<String, Object> toZoneMap(ParkingZoneEntity zone) {
         Map<String, Object> item = new LinkedHashMap<>();
-        item.put("floor", zone.getParkingLot() != null ? zone.getParkingLot().getFloor() : "B1");.
+        item.put("floor", zone.getParkingLot() != null ? zone.getParkingLot().getFloor() : "B1");
         // 👇 하드코딩된 이름 검사 대신, DB의 'zone_type'을 직접 사용하도록 스마트하게 변경!
         item.put("type", "double_lane".equals(zone.getZoneType()) ? "aisle" : "slot");
         item.put("slot", zone.getAreaNumber());
