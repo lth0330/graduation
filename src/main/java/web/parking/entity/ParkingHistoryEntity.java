@@ -64,6 +64,12 @@ public class ParkingHistoryEntity {
     @Column(name = "history_status", length = 20, nullable = false)
     private String status;
 
+    @Column(name = "park_type", length = 30)
+    private String parkType;
+
+    @Column(name = "linked_zone", length = 255)
+    private String linkedZone;
+
     @PrePersist
     public void prePersist() {
         if (entryTime == null) {
@@ -71,6 +77,9 @@ public class ParkingHistoryEntity {
         }
         if (status == null || status.isBlank()) {
             status = "PARKED";
+        }
+        if (parkType == null || parkType.isBlank()) {
+            parkType = "normal";
         }
     }
 }

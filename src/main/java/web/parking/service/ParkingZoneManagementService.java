@@ -44,6 +44,7 @@ public class ParkingZoneManagementService {
                 .areaNumber(requestDto.getAreaNumber())
                 .location(requestDto.getLocation())
                 .status(normalizeStatus(requestDto.getStatus()))
+                .zoneType(normalizeZoneType(requestDto.getZoneType()))
                 .layoutRow(requestDto.getLayoutRow())
                 .layoutColumn(requestDto.getLayoutColumn())
                 .statusChangeReason(requestDto.getStatusChangeReason())
@@ -61,6 +62,9 @@ public class ParkingZoneManagementService {
 
         ParkingZoneEntity parkingZone = findEntity(parkingZoneNo);
         parkingZone.setStatus(normalizeStatus(requestDto.getStatus()));
+        if (!isBlank(requestDto.getZoneType())) {
+            parkingZone.setZoneType(normalizeZoneType(requestDto.getZoneType()));
+        }
         parkingZone.setStatusChangeReason(requestDto.getStatusChangeReason());
         return toDto(parkingZone);
     }
@@ -150,6 +154,16 @@ public class ParkingZoneManagementService {
         return status;
     }
 
+    private String normalizeZoneType(String zoneType) {
+        if (isBlank(zoneType)) {
+            return "normal";
+        }
+        if (!List.of("normal", "double_lane").contains(zoneType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 주차구역 종류입니다.");
+        }
+        return zoneType;
+    }
+
     private ParkingZoneDto toDto(ParkingZoneEntity parkingZone) {
         return ParkingZoneDto.builder()
                 .parkingZoneNo(parkingZone.getNo())
@@ -157,6 +171,7 @@ public class ParkingZoneManagementService {
                 .areaNumber(parkingZone.getAreaNumber())
                 .location(parkingZone.getLocation())
                 .status(parkingZone.getStatus())
+                .zoneType(parkingZone.getZoneType())
                 .layoutRow(parkingZone.getLayoutRow())
                 .layoutColumn(parkingZone.getLayoutColumn())
                 .statusChangeReason(parkingZone.getStatusChangeReason())

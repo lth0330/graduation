@@ -10,5 +10,6 @@ import lombok.Setter;
 public class ParkingZoneStatusRequestDto {
 
     private String status;
+    private String zoneType;
     private String statusChangeReason;
 }

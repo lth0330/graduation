@@ -8,6 +8,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -42,6 +43,9 @@ public class ParkingZoneEntity {
     @Column(name = "status", length = 20, nullable = false)
     private String status;
 
+    @Column(name = "zone_type", length = 30)
+    private String zoneType;
+
     @Column(name = "layout_row")
     private Integer layoutRow;
 
@@ -53,4 +57,14 @@ public class ParkingZoneEntity {
 
     @Column(name = "current_car_number")
     private String currentCarNumber;
+
+    @PrePersist
+    public void prePersist() {
+        if (status == null || status.isBlank()) {
+            status = "empty";
+        }
+        if (zoneType == null || zoneType.isBlank()) {
+            zoneType = "normal";
+        }
+    }
 }
