@@ -45,6 +45,10 @@ public class AppAuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Password does not match.");
         }
 
+        if (resident.getApprovalStatus() != ApprovalStatus.APPROVED) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Resident signup is not approved.");
+        }
+
         Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
         // 발급된 토큰에는 입주민 번호, 권한, 아파트 번호가 들어가 이후 API 권한 확인에 사용된다.
         String token = jwtProvider.generateToken(resident.getNo(), UserRole.RESIDENT, apartmentNo, resident.getLoginId());
@@ -84,7 +88,7 @@ public class AppAuthService {
                 .phone(trimToNull(requestDto.getPhone()))
                 .dong(requestDto.getDong().trim())
                 .ho(requestDto.getHo().trim())
-                .approvalStatus(ApprovalStatus.APPROVED)
+                .approvalStatus(ApprovalStatus.PENDING)
                 .build();
 
         residentRepository.save(resident);

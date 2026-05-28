@@ -25,8 +25,8 @@ public class ResidentApprovalService {
     private final GmailMailService gmailMailService;
 
     public List<ResidentApprovalDto> findSignupRequests(Integer apartmentNo) {
-        // Read: 특정 아파트의 입주민 가입 요청 목록을 조회한다.
-        return residentRepository.findByApartment_No(apartmentNo)
+        // Read: 특정 아파트의 승인 대기 중인 입주민 가입 요청 목록만 조회한다.
+        return residentRepository.findByApartment_NoAndApprovalStatus(apartmentNo, ApprovalStatus.PENDING)
                 .stream()
                 .map(this::toApprovalDto)
                 .toList();
