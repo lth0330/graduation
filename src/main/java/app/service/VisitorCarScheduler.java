@@ -41,15 +41,15 @@ public class VisitorCarScheduler {
                 String timeText = remainMins >= 60 ? (remainMins / 60) + "시간" : remainMins + "분";
                 String title = "⏰ 방문 차량 만료 임박";
                 String body = "등록하신 방문 차량(" + car.getNumber() + ")의 주차 시간이 " + timeText + " 남았습니다.";
-                
+
                 sendNotificationAndPush(car, title, body);
             }
-            
+
             // 2. 만료 시 삭제 및 알림
             else if (remainMins <= 0) {
                 String body = "방문 차량(" + car.getNumber() + ")의 24시간 주차가 만료되어 자동 출차 처리되었습니다.";
                 sendNotificationAndPush(car, "⏰ 방문 차량 만료 알림", body);
-                
+
                 registeredCarRepository.delete(car);
             }
         }
@@ -77,3 +77,4 @@ public class VisitorCarScheduler {
             });
         }
     }
+}
