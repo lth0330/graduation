@@ -29,9 +29,9 @@ public class AppParkingService {
 
     private Map<String, Object> toZoneMap(ParkingZoneEntity zone) {
         Map<String, Object> item = new LinkedHashMap<>();
-        item.put("floor", zone.getParkingLot() != null ? zone.getParkingLot().getFloor() : "B1");
-        // 통로 구역은 주차 가능 슬롯과 UI 표시 방식이 달라 type을 분리한다.
-        item.put("type", isAisle(zone.getAreaNumber()) ? "aisle" : "slot");
+        item.put("floor", zone.getParkingLot() != null ? zone.getParkingLot().getFloor() : "B1");.
+        // 👇 하드코딩된 이름 검사 대신, DB의 'zone_type'을 직접 사용하도록 스마트하게 변경!
+        item.put("type", "double_lane".equals(zone.getZoneType()) ? "aisle" : "slot");
         item.put("slot", zone.getAreaNumber());
         item.put("status", zone.getStatus());
         item.put("isOccupied", isOccupied(zone.getStatus()));

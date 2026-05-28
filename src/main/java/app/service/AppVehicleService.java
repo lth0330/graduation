@@ -58,12 +58,16 @@ public class AppVehicleService {
             return success();
         }
 
-        // 입주민 차량은 웹 관리자와 공유하는 car 테이블에 저장한다.
+         // 입주민 차량은 웹 관리자와 공유하는 car 테이블에 저장한다.
         ResidentVehicleEntity residentVehicle = ResidentVehicleEntity.builder()
                 .resident(resident)
                 .number(requestDto.getNumber().trim())
-                .name(null)
-                .kind(trimToNull(requestDto.getName()))
+                // 👇 [수정 전]
+                // .name(null)
+                // .kind(trimToNull(requestDto.getName()))
+                // 👇 [수정 후: 제자리 찾아주기!]
+                .name(trimToNull(requestDto.getName()))
+                .kind(trimToNull(requestDto.getCarType()))
                 .note(trimToNull(requestDto.getNote()))
                 .build();
         residentVehicleRepository.save(residentVehicle);
