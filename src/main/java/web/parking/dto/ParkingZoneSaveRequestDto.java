@@ -13,6 +13,7 @@ public class ParkingZoneSaveRequestDto {
     private String areaNumber;
     private String location;
     private String status;
+    private String zoneType;
     private Integer layoutRow;
     private Integer layoutColumn;
     private String statusChangeReason;

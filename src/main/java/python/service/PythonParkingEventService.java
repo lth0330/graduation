@@ -25,6 +25,7 @@ import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ParkingHistoryRepository;
 import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
+import web.notification.service.ManagerNotificationService;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +34,11 @@ public class PythonParkingEventService {
 
     private static final String STATUS_EMPTY = "empty";
     private static final String STATUS_OCCUPIED = "occupied";
+    private static final String ZONE_TYPE_NORMAL = "normal";
+    private static final String ZONE_TYPE_DOUBLE_LANE = "double_lane";
+    private static final String PARK_TYPE_NORMAL = "normal";
+    private static final String PARK_TYPE_MULTI_ZONE = "multi_zone";
+    private static final String PARK_TYPE_DOUBLE_LANE = "double_lane";
     private static final String HISTORY_PARKED = "PARKED";
     private static final String HISTORY_EXITED = "EXITED";
     private static final String UNKNOWN_PLATE = "UNKNOWN";
@@ -42,6 +48,7 @@ public class PythonParkingEventService {
     private final ParkingHistoryRepository parkingHistoryRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
+    private final ManagerNotificationService managerNotificationService;
 
     // Python 번호판 보정에서 사용할 등록 차량번호 목록을 주민/방문 차량에서 함께 조회한다.
     public List<Map<String, String>> findCarNumbers() {
@@ -76,6 +83,7 @@ public class PythonParkingEventService {
         }
 
         String plate = normalizePlate(requestDto.getPlate());
+        String parkType = normalizeParkType(requestDto.getParkType(), zone);
         ResidentVehicleEntity residentVehicle = findResidentVehicle(plate);
         RegisteredCarEntity visitorVehicle = findVisitorVehicle(plate);
 
@@ -95,9 +103,12 @@ public class PythonParkingEventService {
                 .plate(plate)
                 .entryTime(parseDateTime(requestDto.getEntryTime()))
                 .status(HISTORY_PARKED)
+                .parkType(parkType)
+                .linkedZone(normalizeLinkedZone(requestDto.getLinkedZone()))
                 .build();
 
-        parkingHistoryRepository.save(history);
+        ParkingHistoryEntity savedHistory = parkingHistoryRepository.save(history);
+        createParkingNotificationIfNeeded(zone, savedHistory);
         return result("entry", zone, history);
     }
 
@@ -181,6 +192,67 @@ public class PythonParkingEventService {
         return plate.trim();
     }
 
+    private String normalizeParkType(String requestedParkType, ParkingZoneEntity zone) {
+        if (requestedParkType != null && !requestedParkType.isBlank()) {
+            return requestedParkType.trim();
+        }
+        if (ZONE_TYPE_DOUBLE_LANE.equals(zone.getZoneType())) {
+            return PARK_TYPE_DOUBLE_LANE;
+        }
+        return PARK_TYPE_NORMAL;
+    }
+
+    private String normalizeLinkedZone(String linkedZone) {
+        if (linkedZone == null || linkedZone.isBlank()) {
+            return null;
+        }
+        return linkedZone.trim();
+    }
+
+    private void createParkingNotificationIfNeeded(ParkingZoneEntity zone, ParkingHistoryEntity history) {
+        boolean multiZoneParking = PARK_TYPE_MULTI_ZONE.equals(history.getParkType());
+        boolean doubleLaneParking = ZONE_TYPE_DOUBLE_LANE.equals(zone.getZoneType())
+                || PARK_TYPE_DOUBLE_LANE.equals(history.getParkType());
+
+        if (!multiZoneParking && !doubleLaneParking) {
+            return;
+        }
+
+        boolean hasEmptyNormalZone = zone.getParkingLot() != null
+                && parkingZoneRepository.existsByParkingLot_NoAndZoneTypeAndStatus(
+                zone.getParkingLot().getNo(),
+                ZONE_TYPE_NORMAL,
+                STATUS_EMPTY
+        );
+
+        if (doubleLaneParking && !hasEmptyNormalZone) {
+            return;
+        }
+
+        String title = multiZoneParking ? "두 칸 주차 감지" : "이중주차 구역 주차 감지";
+        String message = buildParkingNotificationMessage(zone, history, multiZoneParking);
+
+        managerNotificationService.createApartmentNotification(
+                zone.getParkingLot() != null ? zone.getParkingLot().getApartment() : null,
+                "abnormal_parking",
+                title,
+                message,
+                "parking_history",
+                history.getId()
+        );
+    }
+
+    private String buildParkingNotificationMessage(
+            ParkingZoneEntity zone,
+            ParkingHistoryEntity history,
+            boolean multiZoneParking
+    ) {
+        if (multiZoneParking) {
+            return zone.getAreaNumber() + " 구역에서 두 칸 주차가 감지되었습니다.";
+        }
+        return zone.getAreaNumber() + " 구역에 정상 주차칸이 남아있는 상태로 이중주차가 감지되었습니다.";
+    }
+
     private void validateZone(String zoneName) {
         if (zoneName == null || zoneName.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "주차구역 번호는 필수입니다.");
@@ -200,6 +272,8 @@ public class PythonParkingEventService {
         response.put("zone", zone.getAreaNumber());
         response.put("status", zone.getStatus());
         response.put("plate", history.getPlate());
+        response.put("park_type", history.getParkType());
+        response.put("linked_zone", history.getLinkedZone());
         response.put("history_id", history.getId());
         return response;
     }

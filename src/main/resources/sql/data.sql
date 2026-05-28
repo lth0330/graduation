@@ -87,9 +87,7 @@ INSERT INTO parking_lot (
     pl_no, a_no, pl_name, pl_floor, total_spaces, used_spaces
 )
 VALUES
-    (1, 1, '서초 스마트 지하주차장', 'B1', 120, 82),
-    (2, 1, '서초 스마트 지하주차장', 'B2', 110, 76),
-    (3, 1, '서초 스마트 방문객 주차장', '1F', 40, 18)
+    (1, 1, '서초 스마트 지하주차장', 'B1', 4, 0)
 ON DUPLICATE KEY UPDATE
     a_no = VALUES(a_no),
     pl_name = VALUES(pl_name),
@@ -98,25 +96,27 @@ ON DUPLICATE KEY UPDATE
     used_spaces = VALUES(used_spaces);
 
 INSERT INTO parking_zone (
-    pz_no, pl_no, area_number, location, status, layout_row, layout_column,
+    pz_no, pl_no, area_number, location, status, zone_type, layout_row, layout_column,
     status_change_reason, current_car_number
 )
 VALUES
-    (1, 1, 'A-B1-001', 'B1 입구 옆', 'empty', 1, 1, '초기 등록', NULL),
-    (2, 1, 'A-B1-002', 'B1 중앙 구역', 'occupied', 1, 2, '입주민 사용 중', '12가3456'),
-    (3, 1, 'A-B1-003', 'B1 엘리베이터 근처', 'empty', 1, 3, '초기 등록', NULL),
-    (4, 1, 'A-B1-004', 'B1 전기차 충전 구역', 'disabled', 1, 4, '충전기 점검', NULL),
-    (5, 2, 'A-B2-001', 'B2 입구 옆', 'occupied', 1, 1, '입주민 사용 중', '789호 1234'),
-    (6, 3, 'V-1F-001', '1F 방문객 입구', 'empty', 1, 1, '초기 등록', NULL)
+    (1, 1, 'a-b1-001', 'B1 1번 주차칸', 'empty', 'normal', 1, 1, '초기 등록', NULL),
+    (2, 1, 'a-b1-002', 'B1 2번 주차칸', 'empty', 'normal', 1, 2, '초기 등록', NULL),
+    (3, 1, 'a-b1-003', 'B1 3번 주차칸', 'empty', 'normal', 1, 3, '초기 등록', NULL),
+    (4, 1, 'a-b1-004', 'B1 4번 주차칸', 'empty', 'normal', 1, 4, '초기 등록', NULL)
 ON DUPLICATE KEY UPDATE
     pl_no = VALUES(pl_no),
     area_number = VALUES(area_number),
     location = VALUES(location),
     status = VALUES(status),
+    zone_type = VALUES(zone_type),
     layout_row = VALUES(layout_row),
     layout_column = VALUES(layout_column),
     status_change_reason = VALUES(status_change_reason),
     current_car_number = VALUES(current_car_number);
+
+DELETE FROM parking_zone WHERE pz_no NOT IN (1, 2, 3, 4);
+DELETE FROM parking_lot WHERE pl_no <> 1;
 
 INSERT INTO registered_cars (
     v_no, u_no, c_number, reg_time, park_time, expire_date
@@ -137,7 +137,7 @@ INSERT INTO notifications (
 )
 VALUES
     (1, 2, 'visitor', '방문 차량 입차 알림', '[33호 3030] 방문 차량이 주차장에 들어왔습니다.', 0, '2026-05-08 12:00:00'),
-    (2, 2, 'parking', '주차구역 상태 변경', 'A-B1-002 구역이 사용 중으로 변경되었습니다.', 1, '2026-05-08 13:30:00')
+    (2, 2, 'parking', '주차구역 상태 변경', 'a-b1-002 구역이 비어 있음으로 변경되었습니다.', 1, '2026-05-08 13:30:00')
 ON DUPLICATE KEY UPDATE
     u_no = VALUES(u_no),
     noti_type = VALUES(noti_type),
@@ -173,7 +173,7 @@ INSERT INTO waiting_list (
     wait_no, u_no, target_slot_id, is_notified, created_at
 )
 VALUES
-    (1, 2, 'A-B1-001', 0, '2026-05-08 14:10:00'),
+    (1, 2, 'a-b1-001', 0, '2026-05-08 14:10:00'),
     (2, 3, 'ALL', 0, '2026-05-09 18:20:00')
 ON DUPLICATE KEY UPDATE
     u_no = VALUES(u_no),

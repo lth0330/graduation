@@ -90,6 +90,7 @@ public class SecurityConfig {
                         .requestMatchers(path("/api/parking-zones/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/manager-inquiries/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/resident-inquiries/**")).hasRole("APARTMENT_MANAGER")
+                        .requestMatchers(path("/api/manager-notifications/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(HttpMethod.GET, "/api/apartment-managers/{managerNo}/my-page").hasRole("APARTMENT_MANAGER")
                         .requestMatchers(HttpMethod.PUT, "/api/apartment-managers/{managerNo}").hasRole("APARTMENT_MANAGER")
                         .requestMatchers(HttpMethod.DELETE, "/api/apartment-managers/{managerNo}").hasRole("WEB_ADMIN")

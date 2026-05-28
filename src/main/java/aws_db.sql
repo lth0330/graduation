@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS waiting_list;
 DROP TABLE IF EXISTS settings;
 DROP TABLE IF EXISTS device_info;
 DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS manager_notification;
 DROP TABLE IF EXISTS gate_entry_log;
 DROP TABLE IF EXISTS parking_history;
 DROP TABLE IF EXISTS registered_cars;
@@ -113,6 +114,7 @@ CREATE TABLE parking_zone (
     area_number VARCHAR(255) NOT NULL,
     location VARCHAR(255) NOT NULL,
     status VARCHAR(20) NOT NULL,
+    zone_type VARCHAR(30) NOT NULL DEFAULT 'normal',
     layout_row INT,
     layout_column INT,
     status_change_reason VARCHAR(255),
@@ -144,6 +146,8 @@ CREATE TABLE parking_history (
     history_entry_time DATETIME(6) NOT NULL,
     history_exit_time DATETIME(6),
     history_status VARCHAR(20) NOT NULL,
+    park_type VARCHAR(30) NOT NULL DEFAULT 'normal',
+    linked_zone VARCHAR(255),
     PRIMARY KEY (history_id),
     INDEX idx_parking_history_zone (pz_no),
     INDEX idx_parking_history_car (c_no),
@@ -179,6 +183,27 @@ CREATE TABLE notifications (
     PRIMARY KEY (noti_no),
     CONSTRAINT fk_notifications_user
         FOREIGN KEY (u_no) REFERENCES `user` (u_no) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE manager_notification (
+    notification_no INT NOT NULL AUTO_INCREMENT,
+    m_no INT,
+    a_no INT NOT NULL,
+    notification_type VARCHAR(30) NOT NULL,
+    title VARCHAR(100) NOT NULL,
+    message VARCHAR(255) NOT NULL,
+    reference_type VARCHAR(30),
+    reference_id INT,
+    is_read TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (notification_no),
+    INDEX idx_manager_notification_apartment (a_no),
+    INDEX idx_manager_notification_manager (m_no),
+    INDEX idx_manager_notification_read (is_read),
+    CONSTRAINT fk_manager_notification_manager
+        FOREIGN KEY (m_no) REFERENCES apartment_manager (m_no) ON DELETE SET NULL,
+    CONSTRAINT fk_manager_notification_apartment
+        FOREIGN KEY (a_no) REFERENCES apartments (a_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE device_info (
