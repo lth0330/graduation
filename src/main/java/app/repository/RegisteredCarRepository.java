@@ -9,6 +9,8 @@ public interface RegisteredCarRepository extends JpaRepository<RegisteredCarEnti
 
     List<RegisteredCarEntity> findByResident_No(Integer residentNo);
 
+    List<RegisteredCarEntity> findByResident_Apartment_No(Integer apartmentNo);
+
     Optional<RegisteredCarEntity> findFirstByNumberAndParkedAtIsNull(String number);
 
     boolean existsByNumber(String number);

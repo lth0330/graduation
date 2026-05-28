@@ -86,6 +86,7 @@ public class SecurityConfig {
                         .requestMatchers(path("/api/resident-signup-requests/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/residents/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/vehicles/**")).hasRole("APARTMENT_MANAGER")
+                        .requestMatchers(path("/api/visitor-cars/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/parking-lots/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/parking-zones/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/manager-inquiries/**")).hasRole("APARTMENT_MANAGER")
