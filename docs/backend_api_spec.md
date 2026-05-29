@@ -58,6 +58,22 @@ http://localhost:8080
 | 입주민 수정 | PUT | `/api/residents/{residentNo}` |
 | 입주민 삭제 | DELETE | `/api/residents/{residentNo}` |
 
+입주민 등록/수정 시 차량 등록 제한 값을 함께 저장할 수 있다.
+
+```json
+{
+  "residentCarLimit": 1,
+  "visitorCarLimit": 2
+}
+```
+
+기본값:
+
+```text
+residentCarLimit = 1
+visitorCarLimit = 2
+```
+
 ## 6. 아파트 관리자 차량 관리
 
 아파트 관리자 화면의 입주민 차량 관리 API다.
@@ -69,6 +85,8 @@ http://localhost:8080
 | 차량 등록 | POST | `/api/vehicles` |
 | 차량 수정 | PUT | `/api/vehicles/{vehicleNo}` |
 | 차량 삭제 | DELETE | `/api/vehicles/{vehicleNo}` |
+
+입주민 차량 등록은 해당 입주민의 `residentCarLimit`을 초과하면 실패한다.
 
 ## 7. 주차장 관리
 
@@ -127,6 +145,13 @@ Flutter 앱에서 호출하는 API다.
 | 방문차량 입차 처리 | POST | `/api/visitor-entry` |
 | 주차 상태 업데이트 | POST | `/api/parking-update` |
 
+앱 차량 등록 제한:
+
+```text
+입주민 차량: residentCarLimit 기준
+방문 차량: visitorCarLimit 기준
+```
+
 ## 12. 앱 문의/알림/설정
 
 | 기능 | Method | URL |
@@ -139,6 +164,8 @@ Flutter 앱에서 호출하는 API다.
 | FCM 토큰 삭제 | DELETE | `/api/device-token` |
 | 푸시 설정 변경 | PATCH | `/api/settings/push` |
 | 테마 설정 변경 | PATCH | `/api/settings/theme` |
+
+앱에서 `/api/inquiries`로 문의를 작성하면 `resident_inquiry` 저장 후 아파트 관리자용 `manager_notification`도 함께 생성된다.
 
 ## 13. 상태값
 

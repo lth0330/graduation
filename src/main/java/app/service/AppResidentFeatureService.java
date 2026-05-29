@@ -27,6 +27,7 @@ import app.repository.RegisteredCarRepository;
 import app.repository.WaitingListRepository;
 import web.inquiry.entity.ResidentInquiryEntity;
 import web.inquiry.repository.ResidentInquiryRepository;
+import web.notification.service.ManagerNotificationService;
 import web.parking.entity.ParkingZoneEntity;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ParkingZoneRepository;
@@ -50,6 +51,7 @@ public class AppResidentFeatureService {
     private final RegisteredCarRepository registeredCarRepository;
     private final ParkingZoneRepository parkingZoneRepository;
     private final FcmService fcmService;
+    private final ManagerNotificationService managerNotificationService;
 
     public Map<String, Object> findInquiries(Integer residentNo) {
         Map<String, Object> response = success();
@@ -67,10 +69,7 @@ public class AppResidentFeatureService {
         }
 
         ResidentEntity resident = findResident(residentNo);
-        // 문의에 차량 번호가 포함된 경우에만 차량 정보를 연결한다.
-        ResidentVehicleEntity vehicle = requestDto.getCarNo() == null
-                ? null
-                : residentVehicleRepository.findById(requestDto.getCarNo()).orElse(null);
+        ResidentVehicleEntity vehicle = resolveInquiryVehicle(residentNo, requestDto.getCarNo());
 
         ResidentInquiryEntity inquiry = ResidentInquiryEntity.builder()
                 .resident(resident)
@@ -79,7 +78,15 @@ public class AppResidentFeatureService {
                 .content(requestDto.getContent().trim())
                 .status("pending")
                 .build();
-        residentInquiryRepository.save(inquiry);
+        ResidentInquiryEntity savedInquiry = residentInquiryRepository.save(inquiry);
+        managerNotificationService.createApartmentNotification(
+                resident.getApartment(),
+                "resident_inquiry",
+                "새 입주민 문의",
+                resident.getName() + " 입주민이 새로운 문의를 등록했습니다.",
+                "resident_inquiry",
+                savedInquiry.getNo()
+        );
         return success();
     }
 
@@ -258,6 +265,22 @@ if (isPushOn2) {
     private ResidentEntity findResident(Integer residentNo) {
         return residentRepository.findById(residentNo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Resident not found."));
+    }
+
+    private ResidentVehicleEntity resolveInquiryVehicle(Integer residentNo, Integer vehicleNo) {
+        if (vehicleNo != null) {
+            ResidentVehicleEntity vehicle = residentVehicleRepository.findById(vehicleNo)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Car not found."));
+            if (vehicle.getResident() == null || !vehicle.getResident().getNo().equals(residentNo)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Resident and car do not match.");
+            }
+            return vehicle;
+        }
+
+        return residentVehicleRepository.findByResident_No(residentNo)
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     private Map<String, Object> toInquiryMap(ResidentInquiryEntity inquiry) {

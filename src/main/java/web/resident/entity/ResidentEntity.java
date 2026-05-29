@@ -71,6 +71,12 @@ public class ResidentEntity {
     @Column(name = "reject_reason", length = 255)
     private String rejectReason;
 
+    @Column(name = "resident_car_limit", nullable = false, columnDefinition = "INT DEFAULT 1")
+    private Integer residentCarLimit;
+
+    @Column(name = "visitor_car_limit", nullable = false, columnDefinition = "INT DEFAULT 2")
+    private Integer visitorCarLimit;
+
     @PrePersist
     public void prePersist() {
         if (registeredAt == null) {
@@ -78,6 +84,12 @@ public class ResidentEntity {
         }
         if (approvalStatus == null) {
             approvalStatus = ApprovalStatus.PENDING;
+        }
+        if (residentCarLimit == null) {
+            residentCarLimit = 1;
+        }
+        if (visitorCarLimit == null) {
+            visitorCarLimit = 2;
         }
     }
 
@@ -94,6 +106,8 @@ public class ResidentEntity {
                 .apartmentNo(apartment != null ? apartment.getNo() : null)
                 .approvalStatus(approvalStatus)
                 .rejectReason(rejectReason)
+                .residentCarLimit(residentCarLimit)
+                .visitorCarLimit(visitorCarLimit)
                 .build();
     }
 }

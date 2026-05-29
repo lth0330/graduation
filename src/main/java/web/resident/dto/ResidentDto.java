@@ -29,6 +29,8 @@ public class ResidentDto {
     private Integer apartmentNo;
     private ApprovalStatus approvalStatus;
     private String rejectReason;
+    private Integer residentCarLimit;
+    private Integer visitorCarLimit;
 
     public ResidentEntity toEntity(ApartmentEntity apartment) {
         return ResidentEntity.builder()
@@ -44,6 +46,8 @@ public class ResidentDto {
                 .apartment(apartment)
                 .approvalStatus(approvalStatus)
                 .rejectReason(rejectReason)
+                .residentCarLimit(residentCarLimit)
+                .visitorCarLimit(visitorCarLimit)
                 .build();
     }
 }

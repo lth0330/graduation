@@ -20,6 +20,8 @@ public class ResidentManagementDto {
     private String unit;
     private String phone;
     private Integer vehicleCount;
+    private Integer residentCarLimit;
+    private Integer visitorCarLimit;
     private LocalDateTime joinedAt;
     private ApprovalStatus approvalStatus;
 }

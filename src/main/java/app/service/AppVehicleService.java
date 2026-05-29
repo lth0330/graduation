@@ -50,6 +50,7 @@ public class AppVehicleService {
 
         // 방문 차량은 앱 전용 registered_cars 테이블에 저장한다.
         if (isVisitorCar(requestDto.getCarType())) {
+            validateVisitorCarLimit(resident);
             RegisteredCarEntity visitorCar = RegisteredCarEntity.builder()
                     .resident(resident)
                     .number(requestDto.getNumber().trim())
@@ -59,6 +60,7 @@ public class AppVehicleService {
         }
 
          // 입주민 차량은 웹 관리자와 공유하는 car 테이블에 저장한다.
+        validateResidentCarLimit(resident);
         ResidentVehicleEntity residentVehicle = ResidentVehicleEntity.builder()
                 .resident(resident)
                 .number(requestDto.getNumber().trim())
@@ -117,6 +119,22 @@ public class AppVehicleService {
     private boolean isVisitorCar(String carType) {
         // Flutter에서 넘어오는 한글/영문 차량 타입을 모두 허용한다.
         return carType != null && (carType.contains("\uBC29\uBB38") || carType.toLowerCase().contains("visitor"));
+    }
+
+    private void validateResidentCarLimit(ResidentEntity resident) {
+        int limit = resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
+        long currentCount = residentVehicleRepository.countByResident_No(resident.getNo());
+        if (currentCount >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "입주민 차량 등록 가능 대수를 초과했습니다.");
+        }
+    }
+
+    private void validateVisitorCarLimit(ResidentEntity resident) {
+        int limit = resident.getVisitorCarLimit() != null ? resident.getVisitorCarLimit() : 2;
+        long currentCount = registeredCarRepository.countByResident_No(resident.getNo());
+        if (currentCount >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "방문 차량 등록 가능 대수를 초과했습니다.");
+        }
     }
 
     private Map<String, Object> success() {

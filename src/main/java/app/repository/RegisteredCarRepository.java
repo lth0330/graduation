@@ -16,4 +16,6 @@ public interface RegisteredCarRepository extends JpaRepository<RegisteredCarEnti
     boolean existsByNumber(String number);
 
     long deleteByNumberAndResident_No(String number, Integer residentNo);
+
+    long countByResident_No(Integer residentNo);
 }

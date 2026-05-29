@@ -62,6 +62,8 @@ public class ResidentManagementService {
                 .ho(requestDto.getUnit().trim())
                 .phone(requestDto.getPhone() != null ? requestDto.getPhone().trim() : null)
                 .approvalStatus(ApprovalStatus.APPROVED)
+                .residentCarLimit(normalizeLimit(requestDto.getResidentCarLimit(), 1))
+                .visitorCarLimit(normalizeLimit(requestDto.getVisitorCarLimit(), 2))
                 .build();
 
         return toManagementDto(residentRepository.save(resident));
@@ -86,6 +88,12 @@ public class ResidentManagementService {
         }
         if (requestDto.getPhone() != null) {
             resident.setPhone(requestDto.getPhone());
+        }
+        if (requestDto.getResidentCarLimit() != null) {
+            resident.setResidentCarLimit(normalizeLimit(requestDto.getResidentCarLimit(), 1));
+        }
+        if (requestDto.getVisitorCarLimit() != null) {
+            resident.setVisitorCarLimit(normalizeLimit(requestDto.getVisitorCarLimit(), 2));
         }
 
         return toManagementDto(resident);
@@ -121,6 +129,24 @@ public class ResidentManagementService {
         return value == null || value.trim().isEmpty();
     }
 
+    private Integer normalizeLimit(Integer limit, int defaultLimit) {
+        if (limit == null) {
+            return defaultLimit;
+        }
+        if (limit < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "차량 등록 제한 수는 0 이상이어야 합니다.");
+        }
+        return limit;
+    }
+
+    private Integer getResidentCarLimit(ResidentEntity resident) {
+        return resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
+    }
+
+    private Integer getVisitorCarLimit(ResidentEntity resident) {
+        return resident.getVisitorCarLimit() != null ? resident.getVisitorCarLimit() : 2;
+    }
+
     private ResidentManagementDto toManagementDto(ResidentEntity resident) {
         return ResidentManagementDto.builder()
                 .residentNo(resident.getNo())
@@ -132,6 +158,8 @@ public class ResidentManagementService {
                 .unit(resident.getHo())
                 .phone(resident.getPhone())
                 .vehicleCount((int) residentVehicleRepository.countByResident_No(resident.getNo()))
+                .residentCarLimit(getResidentCarLimit(resident))
+                .visitorCarLimit(getVisitorCarLimit(resident))
                 .joinedAt(resident.getRegisteredAt())
                 .approvalStatus(resident.getApprovalStatus())
                 .build();

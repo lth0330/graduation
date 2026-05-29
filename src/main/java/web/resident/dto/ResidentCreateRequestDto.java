@@ -17,4 +17,6 @@ public class ResidentCreateRequestDto {
     private String building;
     private String unit;
     private String phone;
+    private Integer residentCarLimit;
+    private Integer visitorCarLimit;
 }

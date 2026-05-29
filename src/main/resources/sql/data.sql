@@ -47,23 +47,24 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO `user` (
     u_no, u_id, u_pwd, u_name, u_email, u_phone, p_date,
-    u_dong, u_ho, a_no, approval_status, reject_reason
+    u_dong, u_ho, a_no, approval_status, reject_reason,
+    resident_car_limit, visitor_car_limit
 )
 VALUES
     (1, 'minjun12', 'user1234', '김민준', 'minjun12@example.com', '01011112222',
-     '2026-04-30 09:00:00', '101', '1203', 1, 'APPROVED', NULL),
+     '2026-04-30 09:00:00', '101', '1203', 1, 'APPROVED', NULL, 1, 2),
     (2, 'seoyeon', 'user1234', '이서연', 'seoyeon@example.com', '01022223333',
-     '2026-04-29 10:20:00', '102', '804', 1, 'APPROVED', NULL),
+     '2026-04-29 10:20:00', '102', '804', 1, 'APPROVED', NULL, 1, 2),
     (3, 'doyoon', 'user1234', '박도윤', 'doyoon@example.com', '01033334444',
-     '2026-04-28 14:10:00', '103', '1501', 1, 'PENDING', NULL),
+     '2026-04-28 14:10:00', '103', '1501', 1, 'PENDING', NULL, 1, 2),
     (4, 'hayoon', 'user1234', '정하윤', 'hayoon@example.com', '01044445555',
-     '2026-05-01 08:40:00', '104', '502', 1, 'APPROVED', NULL),
+     '2026-05-01 08:40:00', '104', '502', 1, 'APPROVED', NULL, 1, 2),
     (5, 'jihoon', 'user1234', '최지훈', 'jihoon@example.com', '01055556666',
-     '2026-05-02 13:15:00', '105', '1101', 1, 'APPROVED', NULL),
+     '2026-05-02 13:15:00', '105', '1101', 1, 'APPROVED', NULL, 2, 2),
     (6, 'eunwoo', 'user1234', '한은우', 'eunwoo@example.com', '01066667777',
-     '2026-05-03 16:30:00', '106', '703', 1, 'PENDING', NULL),
+     '2026-05-03 16:30:00', '106', '703', 1, 'PENDING', NULL, 1, 2),
     (7, 'sua', 'user1234', '오수아', 'sua@example.com', '01077778888',
-     '2026-05-04 10:05:00', '107', '901', 1, 'REJECTED', '세대 정보 확인 필요')
+     '2026-05-04 10:05:00', '107', '901', 1, 'REJECTED', '세대 정보 확인 필요', 1, 2)
 ON DUPLICATE KEY UPDATE
     u_id = VALUES(u_id),
     u_pwd = VALUES(u_pwd),
@@ -75,7 +76,9 @@ ON DUPLICATE KEY UPDATE
     u_ho = VALUES(u_ho),
     a_no = VALUES(a_no),
     approval_status = VALUES(approval_status),
-    reject_reason = VALUES(reject_reason);
+    reject_reason = VALUES(reject_reason),
+    resident_car_limit = VALUES(resident_car_limit),
+    visitor_car_limit = VALUES(visitor_car_limit);
 
 INSERT INTO car (
     c_no, c_name, c_number, c_kind, c_note, c_date, u_no

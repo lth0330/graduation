@@ -46,6 +46,7 @@ public class VehicleManagementService {
         }
 
         ResidentEntity resident = findApprovedResident(requestDto.getOwnerId());
+        validateResidentCarLimit(resident);
         ResidentVehicleEntity vehicle = ResidentVehicleEntity.builder()
                 .name(resident.getName() + " 차량")
                 .number(requestDto.getCarNumber())
@@ -68,6 +69,9 @@ public class VehicleManagementService {
         }
 
         ResidentEntity resident = findApprovedResident(requestDto.getOwnerId());
+        if (vehicle.getResident() == null || !resident.getNo().equals(vehicle.getResident().getNo())) {
+            validateResidentCarLimit(resident);
+        }
         vehicle.setName(resident.getName() + " 차량");
         vehicle.setNumber(requestDto.getCarNumber());
         vehicle.setKind(requestDto.getCarType());
@@ -131,5 +135,13 @@ public class VehicleManagementService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void validateResidentCarLimit(ResidentEntity resident) {
+        int limit = resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
+        long currentCount = residentVehicleRepository.countByResident_No(resident.getNo());
+        if (currentCount >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "입주민 차량 등록 가능 대수를 초과했습니다.");
+        }
     }
 }

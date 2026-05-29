@@ -77,6 +77,8 @@ CREATE TABLE `user` (
     a_no INT,
     approval_status VARCHAR(20) NOT NULL,
     reject_reason VARCHAR(255),
+    resident_car_limit INT NOT NULL DEFAULT 1,
+    visitor_car_limit INT NOT NULL DEFAULT 2,
     PRIMARY KEY (u_no),
     UNIQUE KEY uk_user_login_id (u_id),
     CONSTRAINT fk_user_apartment

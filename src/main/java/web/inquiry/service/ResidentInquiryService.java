@@ -171,7 +171,7 @@ public class ResidentInquiryService {
     private ResidentInquiryDto toDto(ResidentInquiryEntity inquiry) {
         ResidentEntity resident = inquiry.getResident();
         ApartmentEntity apartment = resident != null ? resident.getApartment() : null;
-        ResidentVehicleEntity vehicle = inquiry.getVehicle();
+        ResidentVehicleEntity vehicle = resolveInquiryVehicle(inquiry);
 
         return ResidentInquiryDto.builder()
                 .inquiryNo(inquiry.getNo())
@@ -189,6 +189,20 @@ public class ResidentInquiryService {
                 .createdAt(inquiry.getCreatedAt())
                 .answeredAt(inquiry.getAnsweredAt())
                 .build();
+    }
+
+    private ResidentVehicleEntity resolveInquiryVehicle(ResidentInquiryEntity inquiry) {
+        if (inquiry.getVehicle() != null) {
+            return inquiry.getVehicle();
+        }
+        ResidentEntity resident = inquiry.getResident();
+        if (resident == null || resident.getNo() == null) {
+            return null;
+        }
+        return residentVehicleRepository.findByResident_No(resident.getNo())
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     private Integer getInteger(Map<String, Object> principal, String key) {
