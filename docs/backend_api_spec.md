@@ -1,6 +1,6 @@
 # 백엔드 API 명세
 
-기준일: 2026-05-22
+기준일: 2026-05-29
 
 Base URL:
 
@@ -8,7 +8,7 @@ Base URL:
 http://localhost:8080
 ```
 
-현재 백엔드는 웹 관리자/아파트 관리자 API와 Flutter 앱 API를 함께 제공한다.
+현재 백엔드는 웹 관리자/아파트 관리자 API, Flutter 앱 API, Python/FastAPI 연동 API를 함께 제공합니다.
 
 ## 1. 웹 관리자
 
@@ -58,7 +58,7 @@ http://localhost:8080
 | 입주민 수정 | PUT | `/api/residents/{residentNo}` |
 | 입주민 삭제 | DELETE | `/api/residents/{residentNo}` |
 
-입주민 등록/수정 시 차량 등록 제한 값을 함께 저장할 수 있다.
+입주민 등록/수정 시 차량 등록 제한 값을 함께 저장할 수 있습니다.
 
 ```json
 {
@@ -76,7 +76,7 @@ visitorCarLimit = 2
 
 ## 6. 아파트 관리자 차량 관리
 
-아파트 관리자 화면의 입주민 차량 관리 API다.
+아파트 관리자 화면의 입주민 차량 관리 API입니다.
 
 | 기능 | Method | URL |
 |---|---:|---|
@@ -86,9 +86,23 @@ visitorCarLimit = 2
 | 차량 수정 | PUT | `/api/vehicles/{vehicleNo}` |
 | 차량 삭제 | DELETE | `/api/vehicles/{vehicleNo}` |
 
-입주민 차량 등록은 해당 입주민의 `residentCarLimit`을 초과하면 실패한다.
+입주민 차량 등록은 해당 입주민의 `residentCarLimit`을 초과하면 실패합니다.
 
-## 7. 주차장 관리
+## 7. 방문차량 관리
+
+아파트 관리자가 앱에서 등록된 방문차량을 조회하는 API입니다.
+
+| 기능 | Method | URL |
+|---|---:|---|
+| 방문차량 목록 | GET | `/api/visitor-cars?apartmentNo=1` |
+
+조회 기준:
+
+```text
+registered_cars.u_no -> user.u_no -> user.a_no
+```
+
+## 8. 주차장 관리
 
 | 기능 | Method | URL |
 |---|---:|---|
@@ -96,7 +110,7 @@ visitorCarLimit = 2
 | 주차장 생성 | POST | `/api/parking-lots` |
 | 주차장 삭제 | DELETE | `/api/parking-lots/{parkingLotNo}` |
 
-## 8. 주차칸 관리
+## 9. 주차칸 관리
 
 | 기능 | Method | URL |
 |---|---:|---|
@@ -106,7 +120,34 @@ visitorCarLimit = 2
 | 주차칸 배치 변경 | PATCH | `/api/parking-zones/{parkingZoneNo}/layout` |
 | 주차칸 삭제 | DELETE | `/api/parking-zones/{parkingZoneNo}` |
 
-## 9. 문의
+주차칸 생성/상태 변경 시 구역 종류를 함께 저장할 수 있습니다.
+
+```json
+{
+  "zoneType": "normal"
+}
+```
+
+구역 종류:
+
+```text
+normal       일반 주차칸
+double_lane  통로 주차칸
+```
+
+## 10. 관리자 알림
+
+| 기능 | Method | URL |
+|---|---:|---|
+| 관리자 알림 목록 | GET | `/api/manager-notifications` |
+| 관리자 알림 읽음 처리 | PATCH | `/api/manager-notifications/{notificationNo}/read` |
+
+주요 생성 조건:
+
+- 앱에서 입주민 문의 작성
+- Python 주차 이벤트에서 이상 주차 감지
+
+## 11. 문의
 
 | 기능 | Method | URL |
 |---|---:|---|
@@ -120,9 +161,11 @@ visitorCarLimit = 2
 | 입주민 문의 상세 | GET | `/api/resident-inquiries/{inquiryNo}` |
 | 입주민 문의 답변 | PATCH | `/api/resident-inquiries/{inquiryNo}/answer` |
 
-## 10. 앱 인증/계정
+관리자 화면 입주민 문의 상세는 문의에 연결된 차량을 표시합니다. 문의에 차량이 직접 연결되지 않은 경우 해당 입주민의 첫 입주민 차량을 보조로 사용합니다.
 
-Flutter 앱에서 호출하는 API다.
+## 12. 앱 인증/계정
+
+Flutter 앱에서 호출하는 API입니다.
 
 | 기능 | Method | URL |
 |---|---:|---|
@@ -133,7 +176,7 @@ Flutter 앱에서 호출하는 API다.
 | 비밀번호 재설정 | POST | `/api/reset-pw` |
 | 내 정보 조회 | GET | `/api/user-info` |
 
-## 11. 앱 차량/주차
+## 13. 앱 차량/주차
 
 | 기능 | Method | URL |
 |---|---:|---|
@@ -149,10 +192,12 @@ Flutter 앱에서 호출하는 API다.
 
 ```text
 입주민 차량: residentCarLimit 기준
-방문 차량: visitorCarLimit 기준
+방문차량: visitorCarLimit 기준
 ```
 
-## 12. 앱 문의/알림/설정
+제한 초과 시 `409 CONFLICT`로 응답합니다.
+
+## 14. 앱 문의/알림/설정
 
 | 기능 | Method | URL |
 |---|---:|---|
@@ -165,9 +210,34 @@ Flutter 앱에서 호출하는 API다.
 | 푸시 설정 변경 | PATCH | `/api/settings/push` |
 | 테마 설정 변경 | PATCH | `/api/settings/theme` |
 
-앱에서 `/api/inquiries`로 문의를 작성하면 `resident_inquiry` 저장 후 아파트 관리자용 `manager_notification`도 함께 생성된다.
+앱에서 `/api/inquiries`로 문의를 작성하면 `resident_inquiry` 저장 후 아파트 관리자용 `manager_notification`도 함께 생성됩니다.
 
-## 13. 상태값
+## 15. Python 연동
+
+FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
+
+| 기능 | Method | URL |
+|---|---:|---|
+| 등록 차량 목록 조회 | GET | `/api/parking/cars` |
+| 주차구역 상태 조회 | GET | `/api/parking/zone/{zoneName}` |
+| 입차 저장 | POST | `/api/parking/entry` |
+| 출차 저장 | POST | `/api/parking/exit` |
+| 번호판 수정 | POST | `/api/parking/update-plate` |
+| 차단기 차량 확인 | POST | `/api/gate/check` |
+| 차단기 차량 확인 호환 URL | POST | `/api/check-plate` |
+| 차단기 통과 로그 저장 | POST | `/api/gate/log` |
+| 차단기 통과 로그 호환 URL | POST | `/api/entry-log` |
+| 번호판 미확인 기록 조회 | GET | `/api/gate/unmatched` |
+| 번호판 자동 부여 | POST | `/api/gate/assign-plate` |
+| 이상 주차 알림 요청 | POST | `/api/gate/alert` |
+
+현재 FastAPI 쪽 주의:
+
+- FastAPI `config.py`의 차량 목록 URL이 `/api/cars`를 바라보는 부분이 있습니다.
+- Spring Boot의 Python용 전체 차량 목록 API는 `/api/parking/cars`입니다.
+- FastAPI의 번호판 자동 부여 요청 형식과 Spring Boot의 `/api/gate/assign-plate` 요청 형식이 다릅니다.
+
+## 16. 상태값
 
 ### 승인 상태
 
@@ -185,40 +255,27 @@ Flutter 앱에서 호출하는 API다.
 | `occupied` | 사용 중 |
 | `disabled` | 사용 불가 |
 
-## 14. Python 연동 주의
+### 주차구역 종류
 
-Python FastAPI 서버는 현재 다음 Spring Boot API가 있다고 가정한다.
+| 값 | 의미 |
+|---|---|
+| `normal` | 일반 주차칸 |
+| `double_lane` | 통로 주차칸 |
 
-```text
-/api/parking/zone
-/api/parking/entry
-/api/parking/exit
-/api/parking/update-plate
-/api/gate/check
-/api/gate/log
-/api/gate/unmatched
-/api/gate/assign-plate
-/api/gate/alert
-```
+### 주차 유형
 
-하지만 현재 Spring Boot Controller에는 위 API가 아직 모두 구현되어 있지 않다.
+| 값 | 의미 |
+|---|---|
+| `normal` | 정상 주차 |
+| `multi_zone` | 두 칸 이상 걸침 |
+| `double_lane` | 통로 주차 |
+| `aisle_block` | 통로 방해 |
 
-현재 Spring Boot에 있는 외부 연동용 API는 다음에 가깝다.
+## 17. 프론트/앱 호출 주의사항
 
-```text
-POST /api/visitor-entry
-POST /api/parking-update
-GET /api/app/parking-zones
-GET /api/cars
-```
-
-따라서 Python 연동을 완성하려면 FastAPI의 기대 URL, 요청 JSON, 응답 JSON을 Spring Boot 실제 API와 맞춰야 한다.
-
-## 15. 프론트/앱 호출 주의사항
-
-- 웹 관리자 로그인은 웹 전용 API인 `/api/web-admin/login`을 사용한다.
-- 아파트 관리자 로그인은 `/api/apartment-managers/login`을 사용한다.
-- Flutter 앱 로그인은 `/api/login`을 사용한다.
-- 웹 프론트는 `web\front\src\api\axiosInstance.js`의 baseURL을 사용한다.
-- Flutter 앱은 `lib\main.dart`의 `baseUrl`을 사용한다.
-- Android 에뮬레이터에서는 `localhost` 대신 `10.0.2.2`를 사용한다.
+- 웹 관리자 로그인은 웹 전용 API인 `/api/web-admin/login`을 사용합니다.
+- 아파트 관리자 로그인은 `/api/apartment-managers/login`을 사용합니다.
+- Flutter 앱 로그인은 `/api/login`을 사용합니다.
+- 웹 프론트는 `web\front\src\api\axiosInstance.js`의 baseURL을 사용합니다.
+- Flutter 앱은 `lib\main.dart`의 `baseUrl`을 사용합니다.
+- Android 에뮬레이터에서는 `localhost` 대신 `10.0.2.2`를 사용합니다.
