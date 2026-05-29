@@ -143,7 +143,9 @@ public class AppAuthService {
         user.put("u_name", resident.getName());
         user.put("u_dong", resident.getDong());
         user.put("u_ho", resident.getHo());
-
+        // 👇👇 [여기에 추가!] 아파트 정보가 있으면 이름을 꺼내서 a_name으로 보냅니다.
+        user.put("a_name", resident.getApartment() != null ? resident.getApartment().getName() : ""); 
+        // 👆👆
         Map<String, Object> response = success();
         response.put("user", user);
         return response;
