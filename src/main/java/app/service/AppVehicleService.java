@@ -58,25 +58,24 @@ public class AppVehicleService {
             registeredCarRepository.save(visitorCar);
             return success();
         }
-
-         // 입주민 차량은 웹 관리자와 공유하는 car 테이블에 저장한다.
+// 입주민 차량은 웹 관리자와 공유하는 car 테이블에 저장한다.
         validateResidentCarLimit(resident);
         ResidentVehicleEntity residentVehicle = ResidentVehicleEntity.builder()
                 .resident(resident)
                 .number(requestDto.getNumber().trim())
-                // 👇 [수정 전]
-                // .name(null)
-                // .kind(trimToNull(requestDto.getName()))
-                // 👇 [수정 후: 제자리 찾아주기!]
-                .name(trimToNull(requestDto.getName()))
-                .kind(trimToNull(requestDto.getCarType()))
+                // 👇 [수정 부분] 제자리를 찾아줍니다!
+                // 💡 1. c_name 에는 '입주민 이름 + 차량' 이라는 별칭을 자동으로 만들어줍니다.
+                .name(resident.getName() + " 차량")
+                // 💡 2. c_kind 에 앱에서 모델명으로 입력받은 값("테슬라")을 정확히 넣어줍니다.
+                .kind(trimToNull(requestDto.getName()))
                 .note(trimToNull(requestDto.getNote()))
                 .build();
+
         residentVehicleRepository.save(residentVehicle);
         return success();
     }
 
-@Transactional
+    @Transactional
     public Map<String, Object> delete(Integer residentNo, String carNumber) {
         // 입주민 차량 삭제 시도
         long deletedResidentCars = residentVehicleRepository.deleteByNumberAndResident_No(carNumber, residentNo);
@@ -122,7 +121,11 @@ public class AppVehicleService {
     }
 
     private void validateResidentCarLimit(ResidentEntity resident) {
-        int limit = resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
+        // 👇 null이거나 0이하인 경우 기본값 1을 부여하도록 수정!
+        int limit = (resident.getResidentCarLimit() != null && resident.getResidentCarLimit() > 0) 
+                    ? resident.getResidentCarLimit() 
+                    : 1;
+        
         long currentCount = residentVehicleRepository.countByResident_No(resident.getNo());
         if (currentCount >= limit) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "입주민 차량 등록 가능 대수를 초과했습니다.");
