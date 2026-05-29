@@ -98,7 +98,16 @@ public class AppResidentFeatureService {
                 .toList());
         return response;
     }
-
+    // AppResidentFeatureService.java 파일 내부 아무 곳에나 추가하세요.
+    @Transactional
+    public Map<String, Object> sendTestPush(Integer residentNo) {
+        // 1. 해당 유저의 기기 토큰을 찾습니다.
+        deviceInfoRepository.findByResident_No(residentNo).forEach(device -> {
+            // 2. FcmService를 통해 알림을 보냅니다.
+            fcmService.sendPush(device.getFcmToken(), "🚀 테스트 푸시 알림", "지금 서버에서 푸시 알림이 정상적으로 전송되었습니다!");
+        });
+        return success();
+    }
     @Transactional
     public Map<String, Object> readNotification(Integer residentNo, Integer notificationNo) {
         AppNotificationEntity notification = notificationRepository.findById(notificationNo)
@@ -188,7 +197,7 @@ public class AppResidentFeatureService {
         return success();
     }
 
-@Transactional
+    @Transactional
     public Map<String, Object> updateParking(AppParkingUpdateRequestDto requestDto) {
         if (requestDto == null || requestDto.getUpdates() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parking updates are required.");
@@ -196,29 +205,29 @@ public class AppResidentFeatureService {
 
         for (AppParkingUpdateItemDto update : requestDto.getUpdates()) {
             if (update == null || isBlank(update.getSlot()) || isBlank(update.getStatus())) continue;
-            
+
             parkingZoneRepository.findByAreaNumber(update.getSlot()).ifPresent(zone -> {
                 zone.setStatus(update.getStatus());
 
                 // 💡 1. 빈자리가 났을 때 대기자에게 알림 발송
                 if (update.getStatus().equals("empty")) {
                     waitingListRepository.findAll().stream()
-                        .filter(w -> !w.getNotified() && (w.getTargetSlotId().equals("ALL") || w.getTargetSlotId().equals(update.getSlot())))
-                        .forEach(w -> {
-                            String msg = "대기하시던 [" + update.getSlot() + "] 구역에 빈자리가 생겼습니다! 먼저 주차하세요.";
-                            w.setNotified(true);
-                            
-                            notificationRepository.save(AppNotificationEntity.builder()
-                                    .resident(w.getResident()).type("system").title("🔔 빈자리 알림").message(msg).read(false).build());
+                            .filter(w -> !w.getNotified() && (w.getTargetSlotId().equals("ALL") || w.getTargetSlotId().equals(update.getSlot())))
+                            .forEach(w -> {
+                                String msg = "대기하시던 [" + update.getSlot() + "] 구역에 빈자리가 생겼습니다! 먼저 주차하세요.";
+                                w.setNotified(true);
 
-        boolean isPushOn = settingRepository.findByDeviceId("device_" + w.getResident().getNo())
-        .map(AppSettingEntity::getAlertPush).orElse(true);
-           if (isPushOn) {
-            deviceInfoRepository.findByResident_No(w.getResident().getNo())
-            .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 빈자리 알림", msg));
-}
-                        });
-                } 
+                                notificationRepository.save(AppNotificationEntity.builder()
+                                        .resident(w.getResident()).type("system").title("🔔 빈자리 알림").message(msg).read(false).build());
+
+                                boolean isPushOn = settingRepository.findByDeviceId("device_" + w.getResident().getNo())
+                                        .map(AppSettingEntity::getAlertPush).orElse(true);
+                                if (isPushOn) {
+                                    deviceInfoRepository.findByResident_No(w.getResident().getNo())
+                                            .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 빈자리 알림", msg));
+                                }
+                            });
+                }
                 // 💡 2. 주차 완료 시 차주에게 알림 발송 (차량 번호가 전달된 경우)
                 else if ((update.getStatus().equals("occupied") || update.getStatus().equals("사용중")) && zone.getCurrentCarNumber() != null) {
                     residentVehicleRepository.findByNumber(zone.getCurrentCarNumber()).ifPresent(car -> {
@@ -227,12 +236,12 @@ public class AppResidentFeatureService {
                                 .resident(car.getResident()).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
 
 // 👇 [이렇게 변경해 주세요] 👇
-boolean isPushOn2 = settingRepository.findByDeviceId("device_" + car.getResident().getNo())
-        .map(AppSettingEntity::getAlertPush).orElse(true);
-if (isPushOn2) {
-    deviceInfoRepository.findByResident_No(car.getResident().getNo())
-            .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
-}
+                        boolean isPushOn2 = settingRepository.findByDeviceId("device_" + car.getResident().getNo())
+                                .map(AppSettingEntity::getAlertPush).orElse(true);
+                        if (isPushOn2) {
+                            deviceInfoRepository.findByResident_No(car.getResident().getNo())
+                                    .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
+                        }
                     });
                 }
             });

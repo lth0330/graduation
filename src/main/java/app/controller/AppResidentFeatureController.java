@@ -32,6 +32,12 @@ public class AppResidentFeatureController {
         return ResponseEntity.ok(appResidentFeatureService.findInquiries(getUserNo(authentication)));
     }
 
+    @PostMapping("/api/test-push")
+    // Create: 푸시 알림 테스트를 수행합니다.
+    public ResponseEntity<Map<String, Object>> testPush(Authentication authentication) {
+        return ResponseEntity.ok(appResidentFeatureService.sendTestPush(getUserNo(authentication)));
+    }
+
     @PostMapping("/api/inquiries")
     // Create: 입주민 문의를 새로 등록한다.
     public ResponseEntity<Map<String, Object>> createInquiry(
