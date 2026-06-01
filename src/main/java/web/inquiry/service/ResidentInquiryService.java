@@ -111,6 +111,11 @@ public class ResidentInquiryService {
         inquiry.setAnswer(requestDto.getAnswer().trim());
         inquiry.setStatus("answered");
         inquiry.setAnsweredAt(LocalDateTime.now());
+        managerNotificationService.markReferenceAsRead(
+                inquiry.getResident() != null ? inquiry.getResident().getApartment() : null,
+                "resident_inquiry",
+                inquiry.getNo()
+        );
         return toDto(inquiry);
     }
 

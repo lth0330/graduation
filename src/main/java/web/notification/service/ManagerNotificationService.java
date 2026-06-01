@@ -71,6 +71,19 @@ public class ManagerNotificationService {
         return toDto(notification);
     }
 
+    @Transactional
+    public void markReferenceAsRead(ApartmentEntity apartment, String referenceType, Integer referenceId) {
+        if (apartment == null || apartment.getNo() == null || referenceType == null || referenceId == null) {
+            return;
+        }
+
+        managerNotificationRepository.findByApartment_NoAndReferenceTypeAndReferenceIdAndReadFalse(
+                apartment.getNo(),
+                referenceType,
+                referenceId
+        ).forEach(notification -> notification.setRead(true));
+    }
+
     private ManagerNotificationDto toDto(ManagerNotificationEntity notification) {
         ApartmentManagerEntity manager = notification.getManager();
         ApartmentEntity apartment = notification.getApartment();
