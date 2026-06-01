@@ -1,6 +1,6 @@
 # 백엔드 API 명세
 
-기준일: 2026-05-29
+기준일: 2026-06-01
 
 Base URL:
 
@@ -176,6 +176,17 @@ Flutter 앱에서 호출하는 API입니다.
 | 비밀번호 재설정 | POST | `/api/reset-pw` |
 | 내 정보 조회 | GET | `/api/user-info` |
 
+`GET /api/user-info` 응답의 `user` 객체에는 아래 값이 포함됩니다.
+
+```json
+{
+  "u_name": "홍길동",
+  "u_dong": "101",
+  "u_ho": "1001",
+  "a_name": "테스트 아파트"
+}
+```
+
 ## 13. 앱 차량/주차
 
 | 기능 | Method | URL |
@@ -197,6 +208,26 @@ Flutter 앱에서 호출하는 API입니다.
 
 제한 초과 시 `409 CONFLICT`로 응답합니다.
 
+앱 주차구역 조회 응답의 `zones` 항목은 현재 아래 필드를 내려줍니다.
+
+```json
+{
+  "floor": "B1",
+  "type": "slot",
+  "slot": "A-1",
+  "status": "empty",
+  "isOccupied": false,
+  "current_car_number": null
+}
+```
+
+`type` 값:
+
+```text
+slot   일반 주차칸
+aisle  통로 주차칸
+```
+
 ## 14. 앱 문의/알림/설정
 
 | 기능 | Method | URL |
@@ -207,10 +238,18 @@ Flutter 앱에서 호출하는 API입니다.
 | 알림 읽음 처리 | PATCH | `/api/notifications/{notificationNo}/read` |
 | FCM 토큰 저장 | POST | `/api/device-token` |
 | FCM 토큰 삭제 | DELETE | `/api/device-token` |
+| 테스트 푸시 발송 | POST | `/api/test-push` |
 | 푸시 설정 변경 | PATCH | `/api/settings/push` |
 | 테마 설정 변경 | PATCH | `/api/settings/theme` |
 
 앱에서 `/api/inquiries`로 문의를 작성하면 `resident_inquiry` 저장 후 아파트 관리자용 `manager_notification`도 함께 생성됩니다.
+
+FCM 동작:
+
+- 앱 로그인 성공 후 `POST /api/device-token`으로 FCM 토큰을 저장하거나 갱신합니다.
+- 앱 로그아웃 시 `DELETE /api/device-token`으로 저장된 토큰을 제거합니다.
+- `POST /api/test-push`는 로그인한 입주민의 기기 토큰으로 테스트 푸시를 전송합니다.
+- FCM 발송 중 `UNREGISTERED`, `INVALID_ARGUMENT` 오류가 나면 해당 토큰은 `device_info`에서 삭제됩니다.
 
 ## 15. Python 연동
 
@@ -277,5 +316,17 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 - 아파트 관리자 로그인은 `/api/apartment-managers/login`을 사용합니다.
 - Flutter 앱 로그인은 `/api/login`을 사용합니다.
 - 웹 프론트는 `web\front\src\api\axiosInstance.js`의 baseURL을 사용합니다.
-- Flutter 앱은 `lib\main.dart`의 `baseUrl`을 사용합니다.
+- Flutter 앱 최신 참고본은 `app\parking2-main`이며, API 기본 주소는 `lib\main.dart`의 `baseUrl`을 사용합니다.
 - Android 에뮬레이터에서는 `localhost` 대신 `10.0.2.2`를 사용합니다.
+
+## 18. 현재 확인된 주의사항
+
+- 최신 앱 참고본 `app\parking2-main` 기준 `parking_screen.dart`는 백엔드 앱 주차구역 응답의 `type == "aisle"` 기준으로 통로 주차칸을 구분합니다.
+- 최신 앱 참고본 `app\parking2-main` 기준 `settings_screen.dart`는 `/api/user-info`의 `a_name`을 화면에 반영하고 `POST /api/test-push`를 호출합니다.
+- 최신 앱 참고본 `app\parking2-main` 기준 `main.dart`에는 FCM background handler가 추가되어 있습니다.
+- `POST /api/test-push`는 현재 `SecurityConfig`에 `RESIDENT` 권한 규칙이 명시되어 있지 않고 `anyRequest().authenticated()`로 처리됩니다.
+- 앱 입주민 차량 등록 API는 등록 가능 대수 제한은 확인하지만, 웹 차량 등록 API처럼 차량번호 중복을 명시적으로 검사하지 않습니다.
+- 최신 앱 참고본 `app\parking2-main\pubspec.yaml`에서 `http`가 `dev_dependencies` 아래에 있습니다. 런타임 코드에서 사용하는 패키지이므로 `dependencies` 아래로 옮기는 것이 맞습니다.
+- `src/main/resources/application-secret.properties`에는 DB/메일/JWT 비밀값이 들어 있고 Git에 올리지 않습니다.
+- `src/main/resources/firebase-key.json`은 현재 존재합니다. 서비스 계정 키이므로 Git에 올리지 않습니다.
+- 이미 원격 저장소에 올라간 키는 삭제 커밋만으로 안전해지지 않으므로 재발급해야 합니다.

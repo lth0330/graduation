@@ -14,7 +14,7 @@ import web.common.type.UserRole;
 @Component
 public class JwtProvider {
 
-    @Value("${jwt.secret:graduation-project-jwt-secret-key-must-be-at-least-32-bytes}")
+    @Value("${jwt.secret}")
     private String secretKey;
 
     @Value("${jwt.expiration-ms:86400000}")
