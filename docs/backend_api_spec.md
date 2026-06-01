@@ -324,8 +324,8 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 - 최신 앱 참고본 `app\parking2-main` 기준 `parking_screen.dart`는 백엔드 앱 주차구역 응답의 `type == "aisle"` 기준으로 통로 주차칸을 구분합니다.
 - 최신 앱 참고본 `app\parking2-main` 기준 `settings_screen.dart`는 `/api/user-info`의 `a_name`을 화면에 반영하고 `POST /api/test-push`를 호출합니다.
 - 최신 앱 참고본 `app\parking2-main` 기준 `main.dart`에는 FCM background handler가 추가되어 있습니다.
-- `POST /api/test-push`는 현재 `SecurityConfig`에 `RESIDENT` 권한 규칙이 명시되어 있지 않고 `anyRequest().authenticated()`로 처리됩니다.
-- 앱 입주민 차량 등록 API는 등록 가능 대수 제한은 확인하지만, 웹 차량 등록 API처럼 차량번호 중복을 명시적으로 검사하지 않습니다.
+- `POST /api/test-push`는 `RESIDENT` 권한이 필요합니다.
+- 앱 입주민 차량/방문차량 등록 API는 등록 가능 대수 제한과 차량번호 중복을 함께 검사합니다.
 - 최신 앱 참고본 `app\parking2-main\pubspec.yaml`에서 `http`가 `dev_dependencies` 아래에 있습니다. 런타임 코드에서 사용하는 패키지이므로 `dependencies` 아래로 옮기는 것이 맞습니다.
 - `src/main/resources/application-secret.properties`에는 DB/메일/JWT 비밀값이 들어 있고 Git에 올리지 않습니다.
 - `src/main/resources/firebase-key.json`은 현재 존재합니다. 서비스 계정 키이므로 Git에 올리지 않습니다.

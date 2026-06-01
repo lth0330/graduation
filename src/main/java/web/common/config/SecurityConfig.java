@@ -72,6 +72,7 @@ public class SecurityConfig {
                         .requestMatchers(path("/api/gate/**")).permitAll()
                         // 앱 입주민 기능은 RESIDENT 권한의 JWT가 있어야 사용할 수 있다.
                         .requestMatchers(HttpMethod.GET, "/api/user-info").hasRole("RESIDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/test-push").hasRole("RESIDENT")
                         .requestMatchers(path("/api/cars/**")).hasRole("RESIDENT")
                         .requestMatchers(path("/api/inquiries/**")).hasRole("RESIDENT")
                         .requestMatchers(path("/api/notifications/**")).hasRole("RESIDENT")

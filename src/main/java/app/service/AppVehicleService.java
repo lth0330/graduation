@@ -45,24 +45,27 @@ public class AppVehicleService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Car number is required.");
         }
 
+        String carNumber = requestDto.getNumber().trim();
         ResidentEntity resident = residentRepository.findById(residentNo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Resident not found."));
 
         // 방문 차량은 앱 전용 registered_cars 테이블에 저장한다.
         if (isVisitorCar(requestDto.getCarType())) {
+            validateDuplicateCarNumber(carNumber);
             validateVisitorCarLimit(resident);
             RegisteredCarEntity visitorCar = RegisteredCarEntity.builder()
                     .resident(resident)
-                    .number(requestDto.getNumber().trim())
+                    .number(carNumber)
                     .build();
             registeredCarRepository.save(visitorCar);
             return success();
         }
 // 입주민 차량은 웹 관리자와 공유하는 car 테이블에 저장한다.
+        validateDuplicateCarNumber(carNumber);
         validateResidentCarLimit(resident);
         ResidentVehicleEntity residentVehicle = ResidentVehicleEntity.builder()
                 .resident(resident)
-                .number(requestDto.getNumber().trim())
+                .number(carNumber)
                 // 👇 [수정 부분] 제자리를 찾아줍니다!
                 // 💡 1. c_name 에는 '입주민 이름 + 차량' 이라는 별칭을 자동으로 만들어줍니다.
                 .name(resident.getName() + " 차량")
@@ -137,6 +140,12 @@ public class AppVehicleService {
         long currentCount = registeredCarRepository.countByResident_No(resident.getNo());
         if (currentCount >= limit) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "방문 차량 등록 가능 대수를 초과했습니다.");
+        }
+    }
+
+    private void validateDuplicateCarNumber(String carNumber) {
+        if (residentVehicleRepository.existsByNumber(carNumber) || registeredCarRepository.existsByNumber(carNumber)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
     }
 

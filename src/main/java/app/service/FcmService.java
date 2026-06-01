@@ -38,7 +38,7 @@ public class FcmService {
 
     public void sendPush(String token, String title, String body) {
         if (token == null || token.isEmpty()) return;
-        System.out.println("DEBUG: 푸시 발송 시도 - 토큰 길이: " + token.length() + ", 토큰 값: " + token);
+        System.out.println("DEBUG: 푸시 발송 시도 - 토큰 길이: " + token.length());
         try {
             Message message = Message.builder()
                     .setToken(token)
@@ -52,7 +52,7 @@ public class FcmService {
             MessagingErrorCode errorCode = e.getMessagingErrorCode();
             if (MessagingErrorCode.UNREGISTERED.equals(errorCode) ||
                     MessagingErrorCode.INVALID_ARGUMENT.equals(errorCode)) {
-                System.err.println("❌ 유효하지 않은 토큰 발견, 삭제 처리합니다: " + token);
+                System.err.println("❌ 유효하지 않은 FCM 토큰 발견, 삭제 처리합니다.");
                 deviceInfoRepository.deleteByFcmToken(token);
             } else {
                 System.err.println("⚠️ FCM 발송 에러 (코드: " + errorCode + "): " + e.getMessage());
