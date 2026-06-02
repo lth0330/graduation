@@ -21,4 +21,10 @@ public interface ManagerNotificationRepository extends JpaRepository<ManagerNoti
     );
 
     long countByApartment_NoAndReadFalse(Integer apartmentNo);
+
+    List<ManagerNotificationEntity> findByApartment_NoAndReferenceTypeAndReferenceIdAndReadFalse(
+            Integer apartmentNo,
+            String referenceType,
+            Integer referenceId
+    );
 }

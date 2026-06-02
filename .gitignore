@@ -54,6 +54,8 @@ pnpm-debug.log*
 .env.*
 !.env.example
 src/main/resources/application.properties
+src/main/resources/application-secret.properties
+src/main/resources/firebase-key.json
 
 ### Logs ###
 *.log

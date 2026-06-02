@@ -120,6 +120,7 @@ public class ResidentInquiryService {
         inquiry.setAnswer(requestDto.getAnswer().trim());
         inquiry.setStatus("answered");
         inquiry.setAnsweredAt(LocalDateTime.now());
+<<<<<<< HEAD
 
         // =========================================================
         // 👇👇 [새로 추가된 앱 푸시 알림 & DB 저장 로직] 👇👇
@@ -145,6 +146,13 @@ public class ResidentInquiryService {
         }
         // =========================================================
 
+=======
+        managerNotificationService.markReferenceAsRead(
+                inquiry.getResident() != null ? inquiry.getResident().getApartment() : null,
+                "resident_inquiry",
+                inquiry.getNo()
+        );
+>>>>>>> 127e954a3975603887a4597667b1aa95d2000a2a
         return toDto(inquiry);
     }
 

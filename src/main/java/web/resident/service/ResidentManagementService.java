@@ -3,6 +3,7 @@ package web.resident.service;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,6 +27,7 @@ public class ResidentManagementService {
     private final ResidentRepository residentRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ApartmentRepository apartmentRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public List<ResidentManagementDto> findApprovedResidents(Integer apartmentNo) {
         // Read: 특정 아파트의 승인된 입주민 목록을 조회한다.
@@ -55,7 +57,7 @@ public class ResidentManagementService {
         ResidentEntity resident = ResidentEntity.builder()
                 .apartment(apartment)
                 .loginId(requestDto.getLoginId().trim())
-                .password(requestDto.getPassword())
+                .password(passwordEncoder.encode(requestDto.getPassword()))
                 .name(requestDto.getName().trim())
                 .email(requestDto.getEmail().trim())
                 .dong(requestDto.getBuilding().trim())
