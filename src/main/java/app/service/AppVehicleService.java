@@ -123,23 +123,31 @@ public class AppVehicleService {
         return carType != null && (carType.contains("\uBC29\uBB38") || carType.toLowerCase().contains("visitor"));
     }
 
-    private void validateResidentCarLimit(ResidentEntity resident) {
-        // 👇 null이거나 0이하인 경우 기본값 1을 부여하도록 수정!
+private void validateResidentCarLimit(ResidentEntity resident) {
         int limit = (resident.getResidentCarLimit() != null && resident.getResidentCarLimit() > 0) 
                     ? resident.getResidentCarLimit() 
                     : 1;
         
-        long currentCount = residentVehicleRepository.countByResident_No(resident.getNo());
+        // 👇 [변경됨] 나 개인이 아니라, 우리 세대(동/호) 전체의 등록 대수를 셉니다!
+        long currentCount = residentVehicleRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
+                resident.getApartment().getNo(), resident.getDong(), resident.getHo()
+        );
+        
         if (currentCount >= limit) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "입주민 차량 등록 가능 대수를 초과했습니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대(동/호)의 입주민 차량 등록 가능 대수를 초과했습니다.");
         }
     }
 
     private void validateVisitorCarLimit(ResidentEntity resident) {
         int limit = resident.getVisitorCarLimit() != null ? resident.getVisitorCarLimit() : 2;
-        long currentCount = registeredCarRepository.countByResident_No(resident.getNo());
+        
+        // 👇 [변경됨] 방문객 차량도 세대(동/호) 전체 기준으로 셉니다!
+        long currentCount = registeredCarRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
+                resident.getApartment().getNo(), resident.getDong(), resident.getHo()
+        );
+        
         if (currentCount >= limit) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "방문 차량 등록 가능 대수를 초과했습니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대(동/호)의 방문 차량 등록 가능 대수를 초과했습니다.");
         }
     }
 
