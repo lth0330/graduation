@@ -21,6 +21,10 @@ import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
 import web.resident.repository.ResidentRepository;
+import app.entity.AppNotificationEntity;
+import app.repository.AppNotificationRepository;
+import app.repository.DeviceInfoRepository;
+import app.service.FcmService;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +37,11 @@ public class ResidentInquiryService {
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ApartmentManagerRepository apartmentManagerRepository;
     private final ManagerNotificationService managerNotificationService;
+    // 👇👇 [여기부터 새로 추가] 👇👇
+    private final AppNotificationRepository appNotificationRepository;
+    private final DeviceInfoRepository deviceInfoRepository;
+    private final FcmService fcmService;
+    // 👆👆 [여기까지 추가] 👆👆
 
     @Transactional
     public ResidentInquiryDto create(ResidentInquiryCreateRequestDto requestDto) {
@@ -111,6 +120,31 @@ public class ResidentInquiryService {
         inquiry.setAnswer(requestDto.getAnswer().trim());
         inquiry.setStatus("answered");
         inquiry.setAnsweredAt(LocalDateTime.now());
+
+        // =========================================================
+        // 👇👇 [새로 추가된 앱 푸시 알림 & DB 저장 로직] 👇👇
+        // =========================================================
+        ResidentEntity resident = inquiry.getResident();
+        if (resident != null) {
+            String title = "💬 문의 답변 완료";
+            String message = "등록하신 문의 [" + inquiry.getTitle() + "] 에 대한 관리자 답변이 등록되었습니다.";
+
+            // 1. 앱의 알림 보관함(AppNotificationEntity)에 데이터 저장
+            appNotificationRepository.save(AppNotificationEntity.builder()
+                    .resident(resident)
+                    .type("inquiry") // 앱에서 문의 아이콘을 띄우고 문의 탭으로 이동하게 하는 핵심 타입
+                    .title(title)
+                    .message(message)
+                    .read(false) // 안 읽음 상태로 저장
+                    .build());
+
+            // 2. 해당 입주민이 로그인한 모든 기기(스마트폰)를 찾아 푸시(FCM) 발송
+            deviceInfoRepository.findByResident_No(resident.getNo()).forEach(device -> {
+                fcmService.sendPush(device.getFcmToken(), title, message);
+            });
+        }
+        // =========================================================
+
         return toDto(inquiry);
     }
 
