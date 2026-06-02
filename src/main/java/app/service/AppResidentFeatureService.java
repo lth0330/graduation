@@ -179,7 +179,6 @@ public class AppResidentFeatureService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Car number is required.");
         }
 
-        // 방문 차량 입차 시 parkedAt/expireAt을 기록하고 입주민 알림을 남긴다.
         RegisteredCarEntity registeredCar = registeredCarRepository
                 .findFirstByNumberAndParkedAtIsNull(requestDto.getCarNumber().trim())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Registered visitor car not found."));
@@ -187,12 +186,33 @@ public class AppResidentFeatureService {
         registeredCar.setParkedAt(LocalDateTime.now());
         registeredCar.setExpiresAt(LocalDateTime.now().plusDays(1));
 
+        // 💡 푸시 알림과 DB 저장에 똑같이 쓸 문구를 변수로 만듭니다. (회원님의 유니코드 그대로 유지)
+        String title = "\uBC29\uBB38 \uCC28\uB7C9 \uC785\uCC28 \uC54C\uB9BC";
+        String message = "[" + registeredCar.getNumber() + "] \uBC29\uBB38 \uCC28\uB7C9\uC774 \uC8FC\uCC28\uC7A5\uC5D0 \uB4E4\uC5B4\uC654\uC2B5\uB2C8\uB2E4.";
+
+        // 1. 기존 코드: 앱 내부 알림함(DB)에 저장
         notificationRepository.save(AppNotificationEntity.builder()
                 .resident(registeredCar.getResident())
                 .type("visitor")
-                .title("\uBC29\uBB38 \uCC28\uB7C9 \uC785\uCC28 \uC54C\uB9BC")
-                .message("[" + registeredCar.getNumber() + "] \uBC29\uBB38 \uCC28\uB7C9\uC774 \uC8FC\uCC28\uC7A5\uC5D0 \uB4E4\uC5B4\uC654\uC2B5\uB2C8\uB2E4.")
+                .title(title)
+                .message(message)
                 .build());
+
+        // =========================================================
+        // 2. 새로 추가된 코드: 스마트폰으로 푸시 알림(FCM) 발송
+        // =========================================================
+        Integer residentNo = registeredCar.getResident().getNo();
+        boolean isPushOn = settingRepository.findByDeviceId("device_" + residentNo)
+                .map(AppSettingEntity::getAlertPush)
+                .orElse(true);
+
+        if (isPushOn) {
+            deviceInfoRepository.findByResident_No(residentNo).forEach(device -> {
+                // 스마트폰 팝업창에는 자동차 이모티콘이 예쁘게 뜨도록 "🚗 "를 살짝 붙여줍니다.
+                fcmService.sendPush(device.getFcmToken(), "🚗 " + title, message);
+            });
+        }
+        // =========================================================
 
         return success();
     }

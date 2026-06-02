@@ -18,6 +18,7 @@ import web.aptManager.repository.ApartmentRepository;
 import web.common.auth.JwtProvider;
 import web.common.type.ApprovalStatus;
 import web.common.type.UserRole;
+import web.notification.service.ManagerNotificationService;
 import web.resident.entity.ResidentEntity;
 import web.resident.repository.ResidentRepository;
 
@@ -31,6 +32,7 @@ public class AppAuthService {
     private final ApartmentRepository apartmentRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final ManagerNotificationService managerNotificationService;
 
     public Map<String, Object> login(AppLoginRequestDto requestDto) {
         if (isBlank(requestDto.getLoginId()) || isBlank(requestDto.getPassword())) {
@@ -91,7 +93,15 @@ public class AppAuthService {
                 .approvalStatus(ApprovalStatus.PENDING)
                 .build();
 
-        residentRepository.save(resident);
+        ResidentEntity savedResident = residentRepository.save(resident);
+        managerNotificationService.createApartmentNotification(
+                apartment,
+                "resident_signup_request",
+                "새 입주민 가입 신청",
+                savedResident.getName() + " 입주민이 회원가입을 신청했습니다.",
+                "resident_signup_request",
+                savedResident.getNo()
+        );
         return success();
     }
 

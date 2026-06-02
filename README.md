@@ -40,10 +40,11 @@ C:\Users\xm300\Desktop\졸업작품\web\graduation
 
 ## 상세 문서
 
-백엔드 구조와 전체 연동 흐름은 루트 문서를 확인합니다.
+백엔드 구조, 기능 설명, 전체 연동 흐름은 루트 문서를 확인합니다.
 
 ```text
 C:\Users\xm300\Desktop\졸업작품\웹_백엔드_구조.md
+C:\Users\xm300\Desktop\졸업작품\웹_기능_정리_팀원용.md
 C:\Users\xm300\Desktop\졸업작품\웹_연동_작업_지침.md
 C:\Users\xm300\Desktop\졸업작품\DB_테이블_정리.md
 ```

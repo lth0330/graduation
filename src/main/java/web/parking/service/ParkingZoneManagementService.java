@@ -6,6 +6,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+// 👇 [핵심 1] 알림 발송에 필요한 앱 쪽 파일들을 모두 가져옵니다!
+import app.entity.AppNotificationEntity;
+import app.entity.AppSettingEntity;
+import app.repository.AppNotificationRepository;
+import app.repository.AppSettingRepository;
+import app.repository.DeviceInfoRepository;
+import app.repository.WaitingListRepository;
+import app.service.FcmService;
+
 import web.parking.dto.ParkingZoneDto;
 import web.parking.dto.ParkingZoneLayoutRequestDto;
 import web.parking.dto.ParkingZoneSaveRequestDto;
@@ -23,6 +33,13 @@ public class ParkingZoneManagementService {
 
     private final ParkingZoneRepository parkingZoneRepository;
     private final ParkingLotRepository parkingLotRepository;
+
+    // 👇 [핵심 2] 알림을 보내기 위해 필요한 부품(도구)들을 조립해 줍니다!
+    private final WaitingListRepository waitingListRepository;
+    private final AppNotificationRepository notificationRepository;
+    private final AppSettingRepository settingRepository;
+    private final DeviceInfoRepository deviceInfoRepository;
+    private final FcmService fcmService;
 
     public List<ParkingZoneDto> findParkingZones(Integer parkingLotNo) {
         // Read: 주차장 번호로 주차구역 목록을 조회한다.
@@ -61,11 +78,45 @@ public class ParkingZoneManagementService {
         }
 
         ParkingZoneEntity parkingZone = findEntity(parkingZoneNo);
-        parkingZone.setStatus(normalizeStatus(requestDto.getStatus()));
+        
+        // 💡 [핵심 3] 상태가 바뀌기 전의 과거 상태를 기억해 둡니다.
+        String oldStatus = parkingZone.getStatus();
+        String newStatus = normalizeStatus(requestDto.getStatus());
+
+        // 상태 업데이트 적용
+        parkingZone.setStatus(newStatus);
         if (!isBlank(requestDto.getZoneType())) {
             parkingZone.setZoneType(normalizeZoneType(requestDto.getZoneType()));
         }
         parkingZone.setStatusChangeReason(requestDto.getStatusChangeReason());
+
+        // =================================================================
+        // 💡 [핵심 4] 웹 관리자가 수동으로 'empty'로 바꿨을 때 알림 발송 로직!
+        // =================================================================
+        if (!"empty".equals(oldStatus) && "empty".equals(newStatus)) {
+            String slotName = parkingZone.getAreaNumber(); // 변경된 주차구역 이름
+
+            waitingListRepository.findAll().stream()
+                    .filter(w -> !w.getNotified() && (w.getTargetSlotId().equals("ALL") || w.getTargetSlotId().equals(slotName)))
+                    .forEach(w -> {
+                        String msg = "대기하시던 [" + slotName + "] 구역에 빈자리가 생겼습니다! 먼저 주차하세요.";
+                        w.setNotified(true); // 대기권 사용 처리
+
+                        // 1. 앱 내부 알림함에 저장
+                        notificationRepository.save(AppNotificationEntity.builder()
+                                .resident(w.getResident()).type("system").title("🔔 빈자리 알림").message(msg).read(false).build());
+
+                        // 2. 스마트폰으로 푸시 알림 쏘기
+                        boolean isPushOn = settingRepository.findByDeviceId("device_" + w.getResident().getNo())
+                                .map(AppSettingEntity::getAlertPush).orElse(true);
+                        if (isPushOn) {
+                            deviceInfoRepository.findByResident_No(w.getResident().getNo())
+                                    .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 빈자리 알림", msg));
+                        }
+                    });
+        }
+        // =================================================================
+
         return toDto(parkingZone);
     }
 
