@@ -37,11 +37,12 @@ public class ResidentInquiryService {
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ApartmentManagerRepository apartmentManagerRepository;
     private final ManagerNotificationService managerNotificationService;
-    // 👇👇 [여기부터 새로 추가] 👇👇
+
+    // 👇 추가된 앱 알림용 도구들
     private final AppNotificationRepository appNotificationRepository;
     private final DeviceInfoRepository deviceInfoRepository;
     private final FcmService fcmService;
-    // 👆👆 [여기까지 추가] 👆👆
+    private final app.repository.AppSettingRepository appSettingRepository;
 
     @Transactional
     public ResidentInquiryDto create(ResidentInquiryCreateRequestDto requestDto) {
@@ -122,28 +123,39 @@ public class ResidentInquiryService {
         inquiry.setAnsweredAt(LocalDateTime.now());
 
         // =========================================================
-        // 👇👇 [새로 추가된 앱 푸시 알림 & DB 저장 로직] 👇👇
+        // 💡 1. 회원님의 코드: 앱 푸시 알림 & DB 저장 로직 (알림 ON/OFF 체크 포함)
         // =========================================================
         ResidentEntity resident = inquiry.getResident();
         if (resident != null) {
             String title = "💬 문의 답변 완료";
             String message = "등록하신 문의 [" + inquiry.getTitle() + "] 에 대한 관리자 답변이 등록되었습니다.";
 
-            // 1. 앱의 알림 보관함(AppNotificationEntity)에 데이터 저장
+            // 1) 앱의 알림 보관함(DB)에 데이터 저장
             appNotificationRepository.save(AppNotificationEntity.builder()
                     .resident(resident)
-                    .type("inquiry") // 앱에서 문의 아이콘을 띄우고 문의 탭으로 이동하게 하는 핵심 타입
+                    .type("inquiry")
                     .title(title)
                     .message(message)
-                    .read(false) // 안 읽음 상태로 저장
+                    .read(false)
                     .build());
 
-            // 2. 해당 입주민이 로그인한 모든 기기(스마트폰)를 찾아 푸시(FCM) 발송
-            deviceInfoRepository.findByResident_No(resident.getNo()).forEach(device -> {
-                fcmService.sendPush(device.getFcmToken(), title, message);
-            });
-        }
+            // 2) 사용자가 앱 설정에서 푸시 알림을 켜두었는지 확인
+            boolean isPushOn = appSettingRepository.findByDeviceId("device_" + resident.getNo())
+                    .map(app.entity.AppSettingEntity::getAlertPush)
+                    .orElse(true);
 
+            // 3) 켜두었을 때만 푸시(FCM) 발송
+            if (isPushOn) {
+                deviceInfoRepository.findByResident_No(resident.getNo()).forEach(device -> {
+                    fcmService.sendPush(device.getFcmToken(), title, message);
+                });
+            }
+        }
+        // 👆 🚨 여기가 if(resident != null) 블록이 닫히는 곳입니다!
+
+        // =========================================================
+        // 💡 2. 팀원의 코드: 관리자 화면 알림 읽음 처리 로직 (if문 바깥에 안전하게 배치!)
+        // =========================================================
         managerNotificationService.markReferenceAsRead(
                 inquiry.getResident() != null ? inquiry.getResident().getApartment() : null,
                 "resident_inquiry",
@@ -151,7 +163,7 @@ public class ResidentInquiryService {
         );
 
         return toDto(inquiry);
-    }
+    } // 👆 🚨 여기가 answer 함수 전체가 닫히는 곳입니다!
 
     private void validateCreateRequest(ResidentInquiryCreateRequestDto requestDto) {
         if (requestDto == null) {
