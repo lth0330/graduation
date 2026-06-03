@@ -159,11 +159,24 @@ public class ResidentManagementService {
                 .building(resident.getDong())
                 .unit(resident.getHo())
                 .phone(resident.getPhone())
-                .vehicleCount((int) residentVehicleRepository.countByResident_No(resident.getNo()))
+                .vehicleCount(countHouseholdResidentVehicles(resident))
                 .residentCarLimit(getResidentCarLimit(resident))
                 .visitorCarLimit(getVisitorCarLimit(resident))
                 .joinedAt(resident.getRegisteredAt())
                 .approvalStatus(resident.getApprovalStatus())
                 .build();
+    }
+
+    private int countHouseholdResidentVehicles(ResidentEntity resident) {
+        Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            return 0;
+        }
+
+        return (int) residentVehicleRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
+                apartmentNo,
+                resident.getDong(),
+                resident.getHo()
+        );
     }
 }

@@ -1,6 +1,7 @@
 package app.service;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 import app.dto.AppCarSaveRequestDto;
 import app.entity.RegisteredCarEntity;
 import app.repository.RegisteredCarRepository;
+import web.inquiry.repository.ResidentInquiryRepository;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
@@ -24,11 +26,13 @@ public class AppVehicleService {
     private final ResidentRepository residentRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
+    private final ResidentInquiryRepository residentInquiryRepository;
 
     public Map<String, Object> findCars(Integer residentNo) {
+        ResidentEntity resident = findResident(residentNo);
         Map<String, Object> response = success();
-        // 앱 화면은 입주민 차량과 방문 차량을 서로 다른 목록으로 보여준다.
-        response.put("resident_cars", residentVehicleRepository.findByResident_No(residentNo)
+        // 앱 화면은 세대 입주민 차량과 개인 방문 차량을 서로 다른 목록으로 보여준다.
+        response.put("resident_cars", findHouseholdResidentVehicles(resident)
                 .stream()
                 .map(this::toResidentCarMap)
                 .toList());
@@ -46,8 +50,7 @@ public class AppVehicleService {
         }
 
         String carNumber = requestDto.getNumber().trim();
-        ResidentEntity resident = residentRepository.findById(residentNo)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Resident not found."));
+        ResidentEntity resident = findResident(residentNo);
 
         // 방문 차량은 앱 전용 registered_cars 테이블에 저장한다.
         if (isVisitorCar(requestDto.getCarType())) {
@@ -60,16 +63,13 @@ public class AppVehicleService {
             registeredCarRepository.save(visitorCar);
             return success();
         }
-// 입주민 차량은 웹 관리자와 공유하는 car 테이블에 저장한다.
+        // 입주민 차량은 웹 관리자와 공유하는 car 테이블에 저장한다.
         validateDuplicateCarNumber(carNumber);
-        validateResidentCarLimit(resident);
+        validateHouseholdResidentCarLimit(resident);
         ResidentVehicleEntity residentVehicle = ResidentVehicleEntity.builder()
                 .resident(resident)
                 .number(carNumber)
-                // 👇 [수정 부분] 제자리를 찾아줍니다!
-                // 💡 1. c_name 에는 '입주민 이름 + 차량' 이라는 별칭을 자동으로 만들어줍니다.
                 .name(resident.getName() + " 차량")
-                // 💡 2. c_kind 에 앱에서 모델명으로 입력받은 값("테슬라")을 정확히 넣어줍니다.
                 .kind(trimToNull(requestDto.getName()))
                 .note(trimToNull(requestDto.getNote()))
                 .build();
@@ -80,9 +80,17 @@ public class AppVehicleService {
 
     @Transactional
     public Map<String, Object> delete(Integer residentNo, String carNumber) {
-        // 입주민 차량 삭제 시도
-        long deletedResidentCars = residentVehicleRepository.deleteByNumberAndResident_No(carNumber, residentNo);
-        if (deletedResidentCars > 0) {
+        ResidentEntity resident = findResident(residentNo);
+
+        // 같은 세대에 등록된 입주민 차량 삭제 시도
+        ResidentVehicleEntity residentVehicle = findHouseholdResidentVehicles(resident)
+                .stream()
+                .filter(vehicle -> carNumber.equals(vehicle.getNumber()))
+                .findFirst()
+                .orElse(null);
+        if (residentVehicle != null) {
+            unlinkVehicleFromInquiries(residentVehicle);
+            residentVehicleRepository.delete(residentVehicle);
             return success();
         }
 
@@ -123,31 +131,46 @@ public class AppVehicleService {
         return carType != null && (carType.contains("\uBC29\uBB38") || carType.toLowerCase().contains("visitor"));
     }
 
-private void validateResidentCarLimit(ResidentEntity resident) {
-        int limit = (resident.getResidentCarLimit() != null && resident.getResidentCarLimit() > 0) 
-                    ? resident.getResidentCarLimit() 
-                    : 1;
-        
-        // 👇 [변경됨] 나 개인이 아니라, 우리 세대(동/호) 전체의 등록 대수를 셉니다!
-        long currentCount = residentVehicleRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
-                resident.getApartment().getNo(), resident.getDong(), resident.getHo()
+    private ResidentEntity findResident(Integer residentNo) {
+        return residentRepository.findById(residentNo)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Resident not found."));
+    }
+
+    private List<ResidentVehicleEntity> findHouseholdResidentVehicles(ResidentEntity resident) {
+        Integer apartmentNo = getApartmentNo(resident);
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            return List.of();
+        }
+
+        return residentVehicleRepository.findByResident_Apartment_NoAndResident_DongAndResident_Ho(
+                apartmentNo,
+                resident.getDong(),
+                resident.getHo()
         );
-        
+    }
+
+    private void validateHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer apartmentNo = getApartmentNo(resident);
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "주민의 세대 정보가 없어 차량을 등록할 수 없습니다.");
+        }
+
+        long currentCount = residentVehicleRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
+                apartmentNo,
+                resident.getDong(),
+                resident.getHo()
+        );
+        int limit = getHouseholdResidentCarLimit(resident);
         if (currentCount >= limit) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대(동/호)의 입주민 차량 등록 가능 대수를 초과했습니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대의 입주민 차량 등록 가능 대수를 초과했습니다.");
         }
     }
 
     private void validateVisitorCarLimit(ResidentEntity resident) {
         int limit = resident.getVisitorCarLimit() != null ? resident.getVisitorCarLimit() : 2;
-        
-        // 👇 [변경됨] 방문객 차량도 세대(동/호) 전체 기준으로 셉니다!
-        long currentCount = registeredCarRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
-                resident.getApartment().getNo(), resident.getDong(), resident.getHo()
-        );
-        
+        long currentCount = registeredCarRepository.countByResident_No(resident.getNo());
         if (currentCount >= limit) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대(동/호)의 방문 차량 등록 가능 대수를 초과했습니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "방문 차량 등록 가능 대수를 초과했습니다.");
         }
     }
 
@@ -155,6 +178,20 @@ private void validateResidentCarLimit(ResidentEntity resident) {
         if (residentVehicleRepository.existsByNumber(carNumber) || registeredCarRepository.existsByNumber(carNumber)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
+    }
+
+    private void unlinkVehicleFromInquiries(ResidentVehicleEntity vehicle) {
+        residentInquiryRepository.findByVehicle_No(vehicle.getNo())
+                .forEach(inquiry -> inquiry.setVehicle(null));
+    }
+
+    private int getHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer limit = resident.getResidentCarLimit();
+        return limit != null && limit >= 0 ? limit : 1;
+    }
+
+    private Integer getApartmentNo(ResidentEntity resident) {
+        return resident.getApartment() != null ? resident.getApartment().getNo() : null;
     }
 
     private Map<String, Object> success() {

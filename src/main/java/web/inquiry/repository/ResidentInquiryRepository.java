@@ -10,5 +10,7 @@ public interface ResidentInquiryRepository extends JpaRepository<ResidentInquiry
 
     List<ResidentInquiryEntity> findByResident_NoOrderByCreatedAtDesc(Integer residentNo);
 
+    List<ResidentInquiryEntity> findByVehicle_No(Integer vehicleNo);
+
     long countByResident_Apartment_NoAndStatus(Integer apartmentNo, String status);
 }

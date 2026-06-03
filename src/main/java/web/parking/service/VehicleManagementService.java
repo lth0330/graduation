@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import web.common.type.ApprovalStatus;
+import web.inquiry.repository.ResidentInquiryRepository;
 import web.parking.dto.VehicleManagementDto;
 import web.parking.dto.VehicleSaveRequestDto;
 import web.parking.entity.ResidentVehicleEntity;
@@ -22,6 +23,7 @@ public class VehicleManagementService {
 
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ResidentRepository residentRepository;
+    private final ResidentInquiryRepository residentInquiryRepository;
 
     public List<VehicleManagementDto> findVehicles(Integer apartmentNo) {
         // Read: 아파트 번호로 차량 목록을 조회한다.
@@ -39,14 +41,14 @@ public class VehicleManagementService {
     @Transactional
     public VehicleManagementDto create(VehicleSaveRequestDto requestDto) {
         // Create: 승인된 입주민에 연결된 차량을 등록한다.
-        validateSaveRequest(requestDto);
+        validateCreateRequest(requestDto);
 
         if (residentVehicleRepository.existsByNumber(requestDto.getCarNumber())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
 
         ResidentEntity resident = findApprovedResident(requestDto.getOwnerId());
-        validateResidentCarLimit(resident);
+        validateHouseholdResidentCarLimit(resident);
         ResidentVehicleEntity vehicle = ResidentVehicleEntity.builder()
                 .name(resident.getName() + " 차량")
                 .number(requestDto.getCarNumber())
@@ -60,23 +62,17 @@ public class VehicleManagementService {
 
     @Transactional
     public VehicleManagementDto update(Integer vehicleNo, VehicleSaveRequestDto requestDto) {
-        // Update: 차량 기본 정보와 소유 입주민을 수정한다.
-        validateSaveRequest(requestDto);
+        // Update: 차량 소유자는 유지하고 차량 기본 정보만 수정한다.
+        validateUpdateRequest(requestDto);
 
         ResidentVehicleEntity vehicle = findEntity(vehicleNo);
         if (residentVehicleRepository.existsByNumberAndNoNot(requestDto.getCarNumber(), vehicleNo)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
 
-        ResidentEntity resident = findApprovedResident(requestDto.getOwnerId());
-        if (vehicle.getResident() == null || !resident.getNo().equals(vehicle.getResident().getNo())) {
-            validateResidentCarLimit(resident);
-        }
-        vehicle.setName(resident.getName() + " 차량");
         vehicle.setNumber(requestDto.getCarNumber());
         vehicle.setKind(requestDto.getCarType());
         vehicle.setNote(requestDto.getNote());
-        vehicle.setResident(resident);
 
         return toManagementDto(vehicle);
     }
@@ -84,7 +80,9 @@ public class VehicleManagementService {
     @Transactional
     public void delete(Integer vehicleNo) {
         // Delete: 차량 단건을 삭제한다.
-        residentVehicleRepository.delete(findEntity(vehicleNo));
+        ResidentVehicleEntity vehicle = findEntity(vehicleNo);
+        unlinkVehicleFromInquiries(vehicle);
+        residentVehicleRepository.delete(vehicle);
     }
 
     private ResidentVehicleEntity findEntity(Integer vehicleNo) {
@@ -118,7 +116,18 @@ public class VehicleManagementService {
                 .build();
     }
 
-    private void validateSaveRequest(VehicleSaveRequestDto requestDto) {
+    private void validateCreateRequest(VehicleSaveRequestDto requestDto) {
+        validateVehicleFields(requestDto);
+        if (requestDto.getOwnerId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "소유 주민은 필수입니다.");
+        }
+    }
+
+    private void validateUpdateRequest(VehicleSaveRequestDto requestDto) {
+        validateVehicleFields(requestDto);
+    }
+
+    private void validateVehicleFields(VehicleSaveRequestDto requestDto) {
         if (requestDto == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "차량 정보를 입력해주세요.");
         }
@@ -128,20 +137,36 @@ public class VehicleManagementService {
         if (isBlank(requestDto.getCarType())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "차종은 필수입니다.");
         }
-        if (requestDto.getOwnerId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "소유 주민은 필수입니다.");
-        }
     }
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
 
-    private void validateResidentCarLimit(ResidentEntity resident) {
-        int limit = resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
-        long currentCount = residentVehicleRepository.countByResident_No(resident.getNo());
-        if (currentCount >= limit) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "입주민 차량 등록 가능 대수를 초과했습니다.");
+    private void unlinkVehicleFromInquiries(ResidentVehicleEntity vehicle) {
+        residentInquiryRepository.findByVehicle_No(vehicle.getNo())
+                .forEach(inquiry -> inquiry.setVehicle(null));
+    }
+
+    private void validateHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "주민의 세대 정보가 없어 차량을 등록할 수 없습니다.");
         }
+
+        long currentCount = residentVehicleRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
+                apartmentNo,
+                resident.getDong(),
+                resident.getHo()
+        );
+        int limit = getHouseholdResidentCarLimit(resident);
+        if (currentCount >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대의 입주민 차량 등록 가능 대수를 초과했습니다.");
+        }
+    }
+
+    private int getHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer limit = resident.getResidentCarLimit();
+        return limit != null && limit >= 0 ? limit : 1;
     }
 }

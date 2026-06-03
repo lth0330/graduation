@@ -1,6 +1,6 @@
 # 백엔드 API 명세
 
-기준일: 2026-06-02
+기준일: 2026-06-03
 
 Base URL:
 
@@ -58,7 +58,8 @@ http://localhost:8080
 | 입주민 수정 | PUT | `/api/residents/{residentNo}` |
 | 입주민 삭제 | DELETE | `/api/residents/{residentNo}` |
 
-입주민 등록/수정 시 차량 등록 제한 값을 함께 저장할 수 있습니다.
+입주민 등록/수정 시 세대 입주민 차량 등록 제한과 방문차량 등록 제한 값을 함께 저장할 수 있습니다.
+입주민 차량은 개인별 카운트가 아니라 같은 아파트의 같은 동/호수 세대 기준으로 카운트합니다.
 
 ```json
 {
@@ -70,7 +71,7 @@ http://localhost:8080
 기본값:
 
 ```text
-residentCarLimit = 1
+residentCarLimit = 1    // 기본 1대이며, 관리자가 세대 차량 제한값으로 변경할 수 있습니다.
 visitorCarLimit = 2
 ```
 
@@ -86,7 +87,11 @@ visitorCarLimit = 2
 | 차량 수정 | PUT | `/api/vehicles/{vehicleNo}` |
 | 차량 삭제 | DELETE | `/api/vehicles/{vehicleNo}` |
 
-입주민 차량 등록은 해당 입주민의 `residentCarLimit`을 초과하면 실패합니다.
+입주민 차량 등록은 같은 아파트의 같은 동/호수 기준으로 현재 차량 수가 `residentCarLimit` 이상이면 실패합니다.
+
+차량 등록 시 `ownerId`로 소유 입주민을 지정합니다. 차량 수정 시에는 기존 소유 입주민을 유지하고 차량번호, 차종, 비고만 수정합니다. 소유 입주민을 잘못 선택해 등록한 경우에는 차량을 삭제한 뒤 올바른 입주민에게 다시 등록합니다.
+
+차량 삭제 시 해당 차량을 참조하던 입주민 문의의 `c_no`는 null로 변경됩니다. 문의 작성자 `u_no`는 유지되므로 문의 이력은 삭제되지 않습니다.
 
 ## 7. 방문차량 관리
 
@@ -202,7 +207,7 @@ Flutter 앱에서 호출하는 API입니다.
 앱 차량 등록 제한:
 
 ```text
-입주민 차량: residentCarLimit 기준
+입주민 차량: 세대 기준 residentCarLimit
 방문차량: visitorCarLimit 기준
 ```
 
@@ -270,11 +275,10 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 | 번호판 자동 부여 | POST | `/api/gate/assign-plate` |
 | 이상 주차 알림 요청 | POST | `/api/gate/alert` |
 
-현재 FastAPI 쪽 주의:
+현재 FastAPI 연동 상태:
 
-- FastAPI `config.py`의 차량 목록 URL이 `/api/cars`를 바라보는 부분이 있습니다.
-- Spring Boot의 Python용 전체 차량 목록 API는 `/api/parking/cars`입니다.
-- FastAPI의 번호판 자동 부여 요청 형식과 Spring Boot의 `/api/gate/assign-plate` 요청 형식이 다릅니다.
+- FastAPI `config.py`의 차량 목록 URL은 `/api/parking/cars`를 사용합니다.
+- 번호판 자동 부여는 FastAPI가 `/api/gate/unmatched`로 `history_id`를 찾은 뒤 `/api/gate/assign-plate`에 `history_id`, `plate`를 전달합니다.
 
 ## 16. 상태값
 
@@ -326,7 +330,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 - 최신 앱 참고본 `app\parking2-main` 기준 `main.dart`에는 FCM background handler가 추가되어 있습니다.
 - `POST /api/test-push`는 `RESIDENT` 권한이 필요합니다.
 - 앱 입주민 차량/방문차량 등록 API는 등록 가능 대수 제한과 차량번호 중복을 함께 검사합니다.
-- 최신 앱 참고본 `app\parking2-main\pubspec.yaml`에서 `http`가 `dev_dependencies` 아래에 있습니다. 런타임 코드에서 사용하는 패키지이므로 `dependencies` 아래로 옮기는 것이 맞습니다.
+- 최신 앱 참고본 `app\parking2-main\pubspec.yaml`에서 `http`는 런타임 의존성이므로 `dependencies` 아래에 있습니다.
 - `src/main/resources/application-secret.properties`에는 DB/메일/JWT 비밀값이 들어 있고 Git에 올리지 않습니다.
 - `src/main/resources/firebase-key.json`은 현재 존재합니다. 서비스 계정 키이므로 Git에 올리지 않습니다.
 - 이미 원격 저장소에 올라간 키는 삭제 커밋만으로 안전해지지 않으므로 재발급해야 합니다.
