@@ -24,6 +24,8 @@ import web.resident.repository.ResidentRepository;
 // 웹 입주민 관리 서비스: user 테이블의 승인된 입주민 CRUD를 처리한다.
 public class ResidentManagementService {
 
+    private static final int HOUSEHOLD_RESIDENT_CAR_LIMIT = 1;
+
     private final ResidentRepository residentRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ApartmentRepository apartmentRepository;
@@ -64,7 +66,7 @@ public class ResidentManagementService {
                 .ho(requestDto.getUnit().trim())
                 .phone(requestDto.getPhone() != null ? requestDto.getPhone().trim() : null)
                 .approvalStatus(ApprovalStatus.APPROVED)
-                .residentCarLimit(normalizeLimit(requestDto.getResidentCarLimit(), 1))
+                .residentCarLimit(HOUSEHOLD_RESIDENT_CAR_LIMIT)
                 .visitorCarLimit(normalizeLimit(requestDto.getVisitorCarLimit(), 2))
                 .build();
 
@@ -91,9 +93,7 @@ public class ResidentManagementService {
         if (requestDto.getPhone() != null) {
             resident.setPhone(requestDto.getPhone());
         }
-        if (requestDto.getResidentCarLimit() != null) {
-            resident.setResidentCarLimit(normalizeLimit(requestDto.getResidentCarLimit(), 1));
-        }
+        resident.setResidentCarLimit(HOUSEHOLD_RESIDENT_CAR_LIMIT);
         if (requestDto.getVisitorCarLimit() != null) {
             resident.setVisitorCarLimit(normalizeLimit(requestDto.getVisitorCarLimit(), 2));
         }
@@ -142,7 +142,7 @@ public class ResidentManagementService {
     }
 
     private Integer getResidentCarLimit(ResidentEntity resident) {
-        return resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
+        return HOUSEHOLD_RESIDENT_CAR_LIMIT;
     }
 
     private Integer getVisitorCarLimit(ResidentEntity resident) {
@@ -159,11 +159,24 @@ public class ResidentManagementService {
                 .building(resident.getDong())
                 .unit(resident.getHo())
                 .phone(resident.getPhone())
-                .vehicleCount((int) residentVehicleRepository.countByResident_No(resident.getNo()))
+                .vehicleCount(countHouseholdResidentVehicles(resident))
                 .residentCarLimit(getResidentCarLimit(resident))
                 .visitorCarLimit(getVisitorCarLimit(resident))
                 .joinedAt(resident.getRegisteredAt())
                 .approvalStatus(resident.getApprovalStatus())
                 .build();
+    }
+
+    private int countHouseholdResidentVehicles(ResidentEntity resident) {
+        Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            return 0;
+        }
+
+        return (int) residentVehicleRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
+                apartmentNo,
+                resident.getDong(),
+                resident.getHo()
+        );
     }
 }

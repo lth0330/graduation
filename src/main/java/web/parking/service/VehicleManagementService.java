@@ -20,6 +20,8 @@ import web.resident.repository.ResidentRepository;
 // 웹 차량 관리 서비스: car 테이블의 입주민 차량 CRUD를 처리한다.
 public class VehicleManagementService {
 
+    private static final int HOUSEHOLD_RESIDENT_CAR_LIMIT = 1;
+
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ResidentRepository residentRepository;
 
@@ -39,14 +41,14 @@ public class VehicleManagementService {
     @Transactional
     public VehicleManagementDto create(VehicleSaveRequestDto requestDto) {
         // Create: 승인된 입주민에 연결된 차량을 등록한다.
-        validateSaveRequest(requestDto);
+        validateCreateRequest(requestDto);
 
         if (residentVehicleRepository.existsByNumber(requestDto.getCarNumber())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
 
         ResidentEntity resident = findApprovedResident(requestDto.getOwnerId());
-        validateResidentCarLimit(resident);
+        validateHouseholdResidentCarLimit(resident);
         ResidentVehicleEntity vehicle = ResidentVehicleEntity.builder()
                 .name(resident.getName() + " 차량")
                 .number(requestDto.getCarNumber())
@@ -60,23 +62,17 @@ public class VehicleManagementService {
 
     @Transactional
     public VehicleManagementDto update(Integer vehicleNo, VehicleSaveRequestDto requestDto) {
-        // Update: 차량 기본 정보와 소유 입주민을 수정한다.
-        validateSaveRequest(requestDto);
+        // Update: 차량 소유자는 유지하고 차량 기본 정보만 수정한다.
+        validateUpdateRequest(requestDto);
 
         ResidentVehicleEntity vehicle = findEntity(vehicleNo);
         if (residentVehicleRepository.existsByNumberAndNoNot(requestDto.getCarNumber(), vehicleNo)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
 
-        ResidentEntity resident = findApprovedResident(requestDto.getOwnerId());
-        if (vehicle.getResident() == null || !resident.getNo().equals(vehicle.getResident().getNo())) {
-            validateResidentCarLimit(resident);
-        }
-        vehicle.setName(resident.getName() + " 차량");
         vehicle.setNumber(requestDto.getCarNumber());
         vehicle.setKind(requestDto.getCarType());
         vehicle.setNote(requestDto.getNote());
-        vehicle.setResident(resident);
 
         return toManagementDto(vehicle);
     }
@@ -118,7 +114,18 @@ public class VehicleManagementService {
                 .build();
     }
 
-    private void validateSaveRequest(VehicleSaveRequestDto requestDto) {
+    private void validateCreateRequest(VehicleSaveRequestDto requestDto) {
+        validateVehicleFields(requestDto);
+        if (requestDto.getOwnerId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "소유 주민은 필수입니다.");
+        }
+    }
+
+    private void validateUpdateRequest(VehicleSaveRequestDto requestDto) {
+        validateVehicleFields(requestDto);
+    }
+
+    private void validateVehicleFields(VehicleSaveRequestDto requestDto) {
         if (requestDto == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "차량 정보를 입력해주세요.");
         }
@@ -128,20 +135,25 @@ public class VehicleManagementService {
         if (isBlank(requestDto.getCarType())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "차종은 필수입니다.");
         }
-        if (requestDto.getOwnerId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "소유 주민은 필수입니다.");
-        }
     }
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
 
-    private void validateResidentCarLimit(ResidentEntity resident) {
-        int limit = resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
-        long currentCount = residentVehicleRepository.countByResident_No(resident.getNo());
-        if (currentCount >= limit) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "입주민 차량 등록 가능 대수를 초과했습니다.");
+    private void validateHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "주민의 세대 정보가 없어 차량을 등록할 수 없습니다.");
+        }
+
+        long currentCount = residentVehicleRepository.countByResident_Apartment_NoAndResident_DongAndResident_Ho(
+                apartmentNo,
+                resident.getDong(),
+                resident.getHo()
+        );
+        if (currentCount >= HOUSEHOLD_RESIDENT_CAR_LIMIT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대는 입주민 차량을 이미 1대 등록했습니다.");
         }
     }
 }

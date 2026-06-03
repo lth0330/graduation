@@ -1,6 +1,6 @@
 # 백엔드 API 명세
 
-기준일: 2026-06-02
+기준일: 2026-06-03
 
 Base URL:
 
@@ -58,11 +58,11 @@ http://localhost:8080
 | 입주민 수정 | PUT | `/api/residents/{residentNo}` |
 | 입주민 삭제 | DELETE | `/api/residents/{residentNo}` |
 
-입주민 등록/수정 시 차량 등록 제한 값을 함께 저장할 수 있습니다.
+입주민 등록/수정 시 방문차량 등록 제한 값을 함께 저장할 수 있습니다.
+입주민 차량은 개인별 제한이 아니라 세대당 1대 고정입니다.
 
 ```json
 {
-  "residentCarLimit": 1,
   "visitorCarLimit": 2
 }
 ```
@@ -70,7 +70,7 @@ http://localhost:8080
 기본값:
 
 ```text
-residentCarLimit = 1
+residentCarLimit = 1    // DB 기본값은 유지하지만, 입주민 차량 제한 로직은 세대당 1대 고정을 사용합니다.
 visitorCarLimit = 2
 ```
 
@@ -86,7 +86,9 @@ visitorCarLimit = 2
 | 차량 수정 | PUT | `/api/vehicles/{vehicleNo}` |
 | 차량 삭제 | DELETE | `/api/vehicles/{vehicleNo}` |
 
-입주민 차량 등록은 해당 입주민의 `residentCarLimit`을 초과하면 실패합니다.
+입주민 차량 등록은 같은 아파트의 같은 동/호수 기준으로 이미 차량이 1대 있으면 실패합니다.
+
+차량 등록 시 `ownerId`로 소유 입주민을 지정합니다. 차량 수정 시에는 기존 소유 입주민을 유지하고 차량번호, 차종, 비고만 수정합니다. 소유 입주민을 잘못 선택해 등록한 경우에는 차량을 삭제한 뒤 올바른 입주민에게 다시 등록합니다.
 
 ## 7. 방문차량 관리
 
@@ -202,7 +204,7 @@ Flutter 앱에서 호출하는 API입니다.
 앱 차량 등록 제한:
 
 ```text
-입주민 차량: residentCarLimit 기준
+입주민 차량: 세대당 1대 기준
 방문차량: visitorCarLimit 기준
 ```
 
