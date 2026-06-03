@@ -18,6 +18,9 @@ import app.dto.AppSettingRequestDto;
 import app.dto.AppVisitorEntryRequestDto;
 import app.dto.AppWaitlistRequestDto;
 import app.service.AppResidentFeatureService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+
 
 @RestController
 @RequiredArgsConstructor
@@ -103,7 +106,16 @@ public class AppResidentFeatureController {
     ) {
         return ResponseEntity.ok(appResidentFeatureService.createWaitlist(getUserNo(authentication), requestDto));
     }
-
+    // =========================================================
+    // 👇👇 [새로 추가] 플러터 앱의 _cancelWaitlist() 와 연결되는 삭제 API!
+    // =========================================================
+    @DeleteMapping("/waitlist")
+    public ResponseEntity<Map<String, Object>> cancelWaitlist(
+            @AuthenticationPrincipal Map<String, Object> principal
+    ) {
+        Integer residentNo = (Integer) principal.get("userNo");
+        return ResponseEntity.ok(appResidentFeatureService.cancelWaitlist(residentNo));
+    }
     @PostMapping("/api/visitor-entry")
     // Update/Create: 방문 차량 입차 시간을 기록하고 알림을 생성한다.
     public ResponseEntity<Map<String, Object>> visitorEntry(@RequestBody AppVisitorEntryRequestDto requestDto) {
