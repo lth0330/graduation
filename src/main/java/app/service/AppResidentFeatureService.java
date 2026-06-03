@@ -181,6 +181,15 @@ public class AppResidentFeatureService {
                 .build());
         return success();
     }
+    // 👇👇 [새로 추가] 입주민이 알림 대기를 취소할 때 사용하는 기능! 👇👇
+    @Transactional
+    public Map<String, Object> cancelWaitlist(Integer residentNo) {
+        // 해당 입주민이 걸어둔 모든 대기열을 찾아내서 깔끔하게 파기합니다.
+        waitingListRepository.findAll().stream()
+                .filter(w -> w.getResident().getNo().equals(residentNo))
+                .forEach(waitingListRepository::delete);
+        return success();
+    }
 
     @Transactional
     public Map<String, Object> visitorEntry(AppVisitorEntryRequestDto requestDto) {
