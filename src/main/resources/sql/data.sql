@@ -52,7 +52,7 @@ INSERT INTO `user` (
 )
 VALUES
     (1, 'minjun12', 'user1234', '김민준', 'minjun12@example.com', '01011112222',
-     '2026-04-30 09:00:00', '101', '1203', 1, 'APPROVED', NULL, 1, 2),
+     '2026-04-30 09:00:00', '101', '1203', 1, 'APPROVED', NULL, 2, 2),
     (2, 'seoyeon', 'user1234', '이서연', 'seoyeon@example.com', '01022223333',
      '2026-04-29 10:20:00', '102', '804', 1, 'APPROVED', NULL, 1, 2),
     (3, 'doyoon', 'user1234', '박도윤', 'doyoon@example.com', '01033334444',

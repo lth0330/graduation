@@ -23,8 +23,6 @@ import web.resident.repository.ResidentRepository;
 // 앱 차량 서비스: 입주민 차량(car)과 방문 차량(registered_cars)의 CRUD를 처리한다.
 public class AppVehicleService {
 
-    private static final int HOUSEHOLD_RESIDENT_CAR_LIMIT = 1;
-
     private final ResidentRepository residentRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
@@ -162,8 +160,9 @@ public class AppVehicleService {
                 resident.getDong(),
                 resident.getHo()
         );
-        if (currentCount >= HOUSEHOLD_RESIDENT_CAR_LIMIT) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대는 입주민 차량을 이미 1대 등록했습니다.");
+        int limit = getHouseholdResidentCarLimit(resident);
+        if (currentCount >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대의 입주민 차량 등록 가능 대수를 초과했습니다.");
         }
     }
 
@@ -184,6 +183,11 @@ public class AppVehicleService {
     private void unlinkVehicleFromInquiries(ResidentVehicleEntity vehicle) {
         residentInquiryRepository.findByVehicle_No(vehicle.getNo())
                 .forEach(inquiry -> inquiry.setVehicle(null));
+    }
+
+    private int getHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer limit = resident.getResidentCarLimit();
+        return limit != null && limit >= 0 ? limit : 1;
     }
 
     private Integer getApartmentNo(ResidentEntity resident) {

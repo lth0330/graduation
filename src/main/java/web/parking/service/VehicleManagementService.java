@@ -21,8 +21,6 @@ import web.resident.repository.ResidentRepository;
 // 웹 차량 관리 서비스: car 테이블의 입주민 차량 CRUD를 처리한다.
 public class VehicleManagementService {
 
-    private static final int HOUSEHOLD_RESIDENT_CAR_LIMIT = 1;
-
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ResidentRepository residentRepository;
     private final ResidentInquiryRepository residentInquiryRepository;
@@ -161,8 +159,14 @@ public class VehicleManagementService {
                 resident.getDong(),
                 resident.getHo()
         );
-        if (currentCount >= HOUSEHOLD_RESIDENT_CAR_LIMIT) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대는 입주민 차량을 이미 1대 등록했습니다.");
+        int limit = getHouseholdResidentCarLimit(resident);
+        if (currentCount >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 세대의 입주민 차량 등록 가능 대수를 초과했습니다.");
         }
+    }
+
+    private int getHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer limit = resident.getResidentCarLimit();
+        return limit != null && limit >= 0 ? limit : 1;
     }
 }

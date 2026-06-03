@@ -58,11 +58,12 @@ http://localhost:8080
 | 입주민 수정 | PUT | `/api/residents/{residentNo}` |
 | 입주민 삭제 | DELETE | `/api/residents/{residentNo}` |
 
-입주민 등록/수정 시 방문차량 등록 제한 값을 함께 저장할 수 있습니다.
-입주민 차량은 개인별 제한이 아니라 세대당 1대 고정입니다.
+입주민 등록/수정 시 세대 입주민 차량 등록 제한과 방문차량 등록 제한 값을 함께 저장할 수 있습니다.
+입주민 차량은 개인별 카운트가 아니라 같은 아파트의 같은 동/호수 세대 기준으로 카운트합니다.
 
 ```json
 {
+  "residentCarLimit": 1,
   "visitorCarLimit": 2
 }
 ```
@@ -70,7 +71,7 @@ http://localhost:8080
 기본값:
 
 ```text
-residentCarLimit = 1    // DB 기본값은 유지하지만, 입주민 차량 제한 로직은 세대당 1대 고정을 사용합니다.
+residentCarLimit = 1    // 기본 1대이며, 관리자가 세대 차량 제한값으로 변경할 수 있습니다.
 visitorCarLimit = 2
 ```
 
@@ -86,7 +87,7 @@ visitorCarLimit = 2
 | 차량 수정 | PUT | `/api/vehicles/{vehicleNo}` |
 | 차량 삭제 | DELETE | `/api/vehicles/{vehicleNo}` |
 
-입주민 차량 등록은 같은 아파트의 같은 동/호수 기준으로 이미 차량이 1대 있으면 실패합니다.
+입주민 차량 등록은 같은 아파트의 같은 동/호수 기준으로 현재 차량 수가 `residentCarLimit` 이상이면 실패합니다.
 
 차량 등록 시 `ownerId`로 소유 입주민을 지정합니다. 차량 수정 시에는 기존 소유 입주민을 유지하고 차량번호, 차종, 비고만 수정합니다. 소유 입주민을 잘못 선택해 등록한 경우에는 차량을 삭제한 뒤 올바른 입주민에게 다시 등록합니다.
 
@@ -206,7 +207,7 @@ Flutter 앱에서 호출하는 API입니다.
 앱 차량 등록 제한:
 
 ```text
-입주민 차량: 세대당 1대 기준
+입주민 차량: 세대 기준 residentCarLimit
 방문차량: visitorCarLimit 기준
 ```
 
@@ -329,7 +330,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 - 최신 앱 참고본 `app\parking2-main` 기준 `main.dart`에는 FCM background handler가 추가되어 있습니다.
 - `POST /api/test-push`는 `RESIDENT` 권한이 필요합니다.
 - 앱 입주민 차량/방문차량 등록 API는 등록 가능 대수 제한과 차량번호 중복을 함께 검사합니다.
-- 최신 앱 참고본 `app\parking2-main\pubspec.yaml`에서 `http`가 `dev_dependencies` 아래에 있습니다. 런타임 코드에서 사용하는 패키지이므로 `dependencies` 아래로 옮기는 것이 맞습니다.
+- 최신 앱 참고본 `app\parking2-main\pubspec.yaml`에서 `http`는 런타임 의존성이므로 `dependencies` 아래에 있습니다.
 - `src/main/resources/application-secret.properties`에는 DB/메일/JWT 비밀값이 들어 있고 Git에 올리지 않습니다.
 - `src/main/resources/firebase-key.json`은 현재 존재합니다. 서비스 계정 키이므로 Git에 올리지 않습니다.
 - 이미 원격 저장소에 올라간 키는 삭제 커밋만으로 안전해지지 않으므로 재발급해야 합니다.

@@ -24,8 +24,6 @@ import web.resident.repository.ResidentRepository;
 // 웹 입주민 관리 서비스: user 테이블의 승인된 입주민 CRUD를 처리한다.
 public class ResidentManagementService {
 
-    private static final int HOUSEHOLD_RESIDENT_CAR_LIMIT = 1;
-
     private final ResidentRepository residentRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ApartmentRepository apartmentRepository;
@@ -66,7 +64,7 @@ public class ResidentManagementService {
                 .ho(requestDto.getUnit().trim())
                 .phone(requestDto.getPhone() != null ? requestDto.getPhone().trim() : null)
                 .approvalStatus(ApprovalStatus.APPROVED)
-                .residentCarLimit(HOUSEHOLD_RESIDENT_CAR_LIMIT)
+                .residentCarLimit(normalizeLimit(requestDto.getResidentCarLimit(), 1))
                 .visitorCarLimit(normalizeLimit(requestDto.getVisitorCarLimit(), 2))
                 .build();
 
@@ -93,7 +91,9 @@ public class ResidentManagementService {
         if (requestDto.getPhone() != null) {
             resident.setPhone(requestDto.getPhone());
         }
-        resident.setResidentCarLimit(HOUSEHOLD_RESIDENT_CAR_LIMIT);
+        if (requestDto.getResidentCarLimit() != null) {
+            resident.setResidentCarLimit(normalizeLimit(requestDto.getResidentCarLimit(), 1));
+        }
         if (requestDto.getVisitorCarLimit() != null) {
             resident.setVisitorCarLimit(normalizeLimit(requestDto.getVisitorCarLimit(), 2));
         }
@@ -142,7 +142,7 @@ public class ResidentManagementService {
     }
 
     private Integer getResidentCarLimit(ResidentEntity resident) {
-        return HOUSEHOLD_RESIDENT_CAR_LIMIT;
+        return resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
     }
 
     private Integer getVisitorCarLimit(ResidentEntity resident) {
