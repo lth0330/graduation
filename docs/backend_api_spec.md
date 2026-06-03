@@ -90,6 +90,8 @@ visitorCarLimit = 2
 
 차량 등록 시 `ownerId`로 소유 입주민을 지정합니다. 차량 수정 시에는 기존 소유 입주민을 유지하고 차량번호, 차종, 비고만 수정합니다. 소유 입주민을 잘못 선택해 등록한 경우에는 차량을 삭제한 뒤 올바른 입주민에게 다시 등록합니다.
 
+차량 삭제 시 해당 차량을 참조하던 입주민 문의의 `c_no`는 null로 변경됩니다. 문의 작성자 `u_no`는 유지되므로 문의 이력은 삭제되지 않습니다.
+
 ## 7. 방문차량 관리
 
 아파트 관리자가 앱에서 등록된 방문차량을 조회하는 API입니다.
@@ -272,11 +274,10 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 | 번호판 자동 부여 | POST | `/api/gate/assign-plate` |
 | 이상 주차 알림 요청 | POST | `/api/gate/alert` |
 
-현재 FastAPI 쪽 주의:
+현재 FastAPI 연동 상태:
 
-- FastAPI `config.py`의 차량 목록 URL이 `/api/cars`를 바라보는 부분이 있습니다.
-- Spring Boot의 Python용 전체 차량 목록 API는 `/api/parking/cars`입니다.
-- FastAPI의 번호판 자동 부여 요청 형식과 Spring Boot의 `/api/gate/assign-plate` 요청 형식이 다릅니다.
+- FastAPI `config.py`의 차량 목록 URL은 `/api/parking/cars`를 사용합니다.
+- 번호판 자동 부여는 FastAPI가 `/api/gate/unmatched`로 `history_id`를 찾은 뒤 `/api/gate/assign-plate`에 `history_id`, `plate`를 전달합니다.
 
 ## 16. 상태값
 

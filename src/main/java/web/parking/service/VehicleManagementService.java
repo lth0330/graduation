@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import web.common.type.ApprovalStatus;
+import web.inquiry.repository.ResidentInquiryRepository;
 import web.parking.dto.VehicleManagementDto;
 import web.parking.dto.VehicleSaveRequestDto;
 import web.parking.entity.ResidentVehicleEntity;
@@ -24,6 +25,7 @@ public class VehicleManagementService {
 
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ResidentRepository residentRepository;
+    private final ResidentInquiryRepository residentInquiryRepository;
 
     public List<VehicleManagementDto> findVehicles(Integer apartmentNo) {
         // Read: 아파트 번호로 차량 목록을 조회한다.
@@ -80,7 +82,9 @@ public class VehicleManagementService {
     @Transactional
     public void delete(Integer vehicleNo) {
         // Delete: 차량 단건을 삭제한다.
-        residentVehicleRepository.delete(findEntity(vehicleNo));
+        ResidentVehicleEntity vehicle = findEntity(vehicleNo);
+        unlinkVehicleFromInquiries(vehicle);
+        residentVehicleRepository.delete(vehicle);
     }
 
     private ResidentVehicleEntity findEntity(Integer vehicleNo) {
@@ -139,6 +143,11 @@ public class VehicleManagementService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void unlinkVehicleFromInquiries(ResidentVehicleEntity vehicle) {
+        residentInquiryRepository.findByVehicle_No(vehicle.getNo())
+                .forEach(inquiry -> inquiry.setVehicle(null));
     }
 
     private void validateHouseholdResidentCarLimit(ResidentEntity resident) {

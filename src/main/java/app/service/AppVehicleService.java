@@ -11,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 import app.dto.AppCarSaveRequestDto;
 import app.entity.RegisteredCarEntity;
 import app.repository.RegisteredCarRepository;
+import web.inquiry.repository.ResidentInquiryRepository;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
@@ -27,6 +28,7 @@ public class AppVehicleService {
     private final ResidentRepository residentRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
+    private final ResidentInquiryRepository residentInquiryRepository;
 
     public Map<String, Object> findCars(Integer residentNo) {
         ResidentEntity resident = findResident(residentNo);
@@ -89,6 +91,7 @@ public class AppVehicleService {
                 .findFirst()
                 .orElse(null);
         if (residentVehicle != null) {
+            unlinkVehicleFromInquiries(residentVehicle);
             residentVehicleRepository.delete(residentVehicle);
             return success();
         }
@@ -176,6 +179,11 @@ public class AppVehicleService {
         if (residentVehicleRepository.existsByNumber(carNumber) || registeredCarRepository.existsByNumber(carNumber)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
+    }
+
+    private void unlinkVehicleFromInquiries(ResidentVehicleEntity vehicle) {
+        residentInquiryRepository.findByVehicle_No(vehicle.getNo())
+                .forEach(inquiry -> inquiry.setVehicle(null));
     }
 
     private Integer getApartmentNo(ResidentEntity resident) {
