@@ -321,8 +321,9 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 - FastAPI `config.py`의 차량 목록 URL은 `/api/parking/cars`를 사용합니다.
 - FastAPI `config.py`의 점유율 URL은 `/api/parking/occupancy`를 사용합니다. 응답은 `total`, `used`, `available`, `rate`입니다.
 - `/api/gate/check`는 등록 차량 여부와 아파트 관리자 차단기 정책을 함께 반영한 최종 `gate_open` 값을 반환합니다.
+- `/api/gate/check` 요청의 아파트 번호는 `apartmentNo`, `apartment_no`, `a_no` 중 하나로 전달할 수 있습니다.
 - 입차 이벤트의 `image_path`는 `parking_history.image_path`에 저장합니다.
-- OCR 실패 등 Python 알림 요청은 `/api/gate/alert`를 통해 관리자 알림(`manager_notification`)으로 저장합니다.
+- OCR 실패 등 Python 알림 요청은 `/api/gate/alert`를 통해 관리자 알림(`manager_notification`)으로 저장합니다. `apartment_no`나 `history_id`가 없어도 `zone`으로 주차구역을 찾아 해당 아파트 알림으로 저장합니다.
 
 차단기 차량 확인 응답 예시:
 
@@ -343,6 +344,20 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
   "reason": "관리자 설정에 따라 번호판 등록 여부만 확인했습니다."
 }
 ```
+
+이상 주차/OCR 실패 알림 요청 예시:
+
+```json
+{
+  "zone": "a-b1-002",
+  "type": "ocr_error",
+  "candidates": "OCR 인식 불가 | 이미지: snapshots/a-b1-002.jpg",
+  "time": "2026-06-04 12:00:00",
+  "image_path": "snapshots/a-b1-002.jpg"
+}
+```
+
+`/api/gate/alert`는 아파트를 찾을 때 `apartment_no`, `history_id`, `zone` 순서로 사용합니다.
 
 차단기 운행 모드 조회 응답 예시:
 
