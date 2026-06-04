@@ -52,12 +52,14 @@ http://localhost:8080
 ```json
 {
   "apartmentNo": 1,
-  "gateOccupancyBlockEnabled": true
+  "gateOccupancyBlockEnabled": true,
+  "gateForceOpenEnabled": false
 }
 ```
 
 `gateOccupancyBlockEnabled`가 `true`이면 입주민 차량은 점유율과 관계없이 개방하고, 방문차량은 주차장 점유율이 80% 이상이거나 빈자리가 0개일 때 차단합니다.
 `false`이면 방문차량도 점유율 조건을 무시하고 등록 번호판 여부만으로 차단기 개방 여부를 판단합니다.
+`gateForceOpenEnabled`가 `true`이면 번호판/점유율 조건과 관계없이 차단기를 상시개방 모드로 운행합니다.
 
 ## 3. 웹 관리자 - 아파트 관리자 승인
 
@@ -307,6 +309,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 | 번호판 수정 | POST | `/api/parking/update-plate` |
 | 차단기 차량 확인 | POST | `/api/gate/check` |
 | 차단기 차량 확인 호환 URL | POST | `/api/check-plate` |
+| 차단기 운행 모드 조회 | GET | `/api/gate/control?apartmentNo=1` |
 | 차단기 통과 로그 저장 | POST | `/api/gate/log` |
 | 차단기 통과 로그 호환 URL | POST | `/api/entry-log` |
 | 번호판 미확인 기록 조회 | GET | `/api/gate/unmatched` |
@@ -331,11 +334,24 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
   "is_visitor": false,
   "gate_open": true,
   "occupancy_block_enabled": false,
+  "force_open_enabled": false,
   "total": 20,
   "used": 17,
   "available": 3,
   "rate": 0.85,
   "reason": "관리자 설정에 따라 번호판 등록 여부만 확인했습니다."
+}
+```
+
+차단기 운행 모드 조회 응답 예시:
+
+```json
+{
+  "apartment_no": 1,
+  "gate_force_open_enabled": true,
+  "gate_open": true,
+  "mode": "FORCE_OPEN",
+  "reason": "관리자 설정에 따라 차단기를 상시 개방합니다."
 }
 ```
 - 번호판 자동 부여는 FastAPI가 `/api/gate/unmatched`로 `history_id`를 찾은 뒤 `/api/gate/assign-plate`에 `history_id`, `plate`를 전달합니다.

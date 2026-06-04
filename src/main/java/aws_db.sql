@@ -31,6 +31,7 @@ CREATE TABLE apartments (
     a_address VARCHAR(255) NOT NULL,
     a_detail_address VARCHAR(255),
     gate_occupancy_block_enabled TINYINT(1) NOT NULL DEFAULT 1,
+    gate_force_open_enabled TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (a_no),
     UNIQUE KEY uk_apartments_name (a_name),
     UNIQUE KEY uk_apartments_password (a_pwd)

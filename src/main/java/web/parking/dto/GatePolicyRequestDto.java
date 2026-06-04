@@ -10,4 +10,5 @@ import lombok.Setter;
 public class GatePolicyRequestDto {
 
     private Boolean gateOccupancyBlockEnabled;
+    private Boolean gateForceOpenEnabled;
 }
