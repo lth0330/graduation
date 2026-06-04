@@ -25,6 +25,8 @@ import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ParkingHistoryRepository;
 import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ResidentVehicleRepository;
+import web.notification.entity.ManagerNotificationEntity;
+import web.notification.service.ManagerNotificationService;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +44,7 @@ public class PythonGateService {
     private final GateEntryLogRepository gateEntryLogRepository;
     private final ParkingLotRepository parkingLotRepository;
     private final ApartmentRepository apartmentRepository;
+    private final ManagerNotificationService managerNotificationService;
 
     // 주민 차량과 방문 차량 테이블을 모두 확인하고 관리자 차단 정책까지 반영해 차단기 개방 여부를 만든다.
     public Map<String, Object> checkPlate(String plate, Integer apartmentNo) {
@@ -184,15 +187,61 @@ public class PythonGateService {
         return response;
     }
 
-    // 현재는 double_park_alert 테이블이 없어서 요청 수신 여부만 응답한다.
+    @Transactional
+    // Python에서 보낸 OCR 실패/이상 알림을 관리자 웹 알림으로 저장한다.
     public Map<String, Object> saveDoubleParkingAlert(Map<String, Object> request) {
+        String alertType = firstText(request, "type", "alert_type");
+        String normalizedType = limitText(alertType != null ? alertType.trim() : "gate_alert", 30);
+        String plate = normalizePlate(firstText(request, "plate", "c_number", "gate_plate"));
+        String candidates = firstText(request, "candidates", "message");
+        String imagePath = firstText(request, "image_path", "imagePath", "snapshot_path");
+        Integer apartmentNo = firstInteger(request, "apartment_no", "apartmentNo", "a_no");
+        Integer historyId = firstInteger(request, "history_id", "historyId");
+
+        ApartmentEntity apartment = findAlertApartment(apartmentNo, historyId);
+        if (apartment == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "알림을 저장할 아파트 정보를 찾을 수 없습니다.");
+        }
+
+        boolean ocrError = "ocr_error".equalsIgnoreCase(normalizedType);
+        String title = ocrError ? "번호판 인식 실패" : "차단기 이상 알림";
+        String message = buildGateAlertMessage(ocrError, plate, candidates, imagePath);
+        String referenceType = ocrError ? "parking_ocr" : "gate_alert";
+
+        ManagerNotificationEntity notification = managerNotificationService.createApartmentNotification(
+                apartment,
+                normalizedType,
+                title,
+                message,
+                referenceType,
+                historyId
+        );
+
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("result", "ok");
-        response.put("saved", false);
-        response.put("plate", firstText(request, "plate", "c_number"));
-        response.put("candidates", firstText(request, "candidates"));
-        response.put("message", "double_park_alert 테이블 없이 요청 수신만 처리했습니다.");
+        response.put("saved", notification != null);
+        response.put("notification_no", notification != null ? notification.getNo() : null);
+        response.put("apartment_no", apartment.getNo());
+        response.put("type", normalizedType);
+        response.put("plate", plate);
+        response.put("candidates", candidates);
+        response.put("image_path", imagePath);
+        response.put("message", "관리자 알림으로 저장했습니다.");
         return response;
+    }
+
+    private ApartmentEntity findAlertApartment(Integer apartmentNo, Integer historyId) {
+        if (apartmentNo != null) {
+            return apartmentRepository.findById(apartmentNo).orElse(null);
+        }
+        if (historyId != null) {
+            return parkingHistoryRepository.findById(historyId)
+                    .map(ParkingHistoryEntity::getParkingZone)
+                    .map(ParkingZoneEntity::getParkingLot)
+                    .map(ParkingLotEntity::getApartment)
+                    .orElse(null);
+        }
+        return findGateApartment(null, null, null);
     }
 
     private String normalizePlate(String plate) {
@@ -335,6 +384,32 @@ public class PythonGateService {
         return "차단기 개방 조건을 만족하지 않습니다.";
     }
 
+    private String buildGateAlertMessage(boolean ocrError, String plate, String candidates, String imagePath) {
+        StringBuilder message = new StringBuilder();
+        if (ocrError) {
+            message.append("OCR 인식 불가 차량이 입차했습니다.");
+        } else {
+            message.append("Python 차단기에서 이상 알림을 전송했습니다.");
+        }
+        if (plate != null) {
+            message.append(" 차량번호: ").append(plate).append(".");
+        }
+        if (candidates != null) {
+            message.append(" 내용: ").append(candidates).append(".");
+        }
+        if (imagePath != null) {
+            message.append(" 이미지: ").append(imagePath);
+        }
+        return limitText(message.toString(), 255);
+    }
+
+    private String limitText(String text, int maxLength) {
+        if (text == null || text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength);
+    }
+
     private boolean hasKey(Map<String, Object> request, String key) {
         return request != null && request.containsKey(key);
     }
@@ -371,18 +446,24 @@ public class PythonGateService {
         return false;
     }
 
-    private Integer firstInteger(Map<String, Object> request, String key) {
-        if (request == null || request.get(key) == null) {
+    private Integer firstInteger(Map<String, Object> request, String... keys) {
+        if (request == null) {
             return null;
         }
-        Object value = request.get(key);
-        if (value instanceof Number number) {
-            return number.intValue();
+        for (String key : keys) {
+            Object value = request.get(key);
+            if (value == null || value.toString().isBlank()) {
+                continue;
+            }
+            if (value instanceof Number number) {
+                return number.intValue();
+            }
+            try {
+                return Integer.parseInt(value.toString());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
         }
-        try {
-            return Integer.parseInt(value.toString());
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
+        return null;
     }
 }
