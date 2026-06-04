@@ -10,6 +10,21 @@ http://localhost:8080
 
 현재 백엔드는 웹 관리자/아파트 관리자 API, Flutter 앱 API, Python/FastAPI 연동 API를 함께 제공합니다.
 
+## 공통 에러 응답
+
+서비스에서 `ResponseStatusException`으로 던진 오류는 다음 형식으로 반환됩니다.
+프론트에서는 `message` 값을 사용자 안내 문구로 사용할 수 있습니다.
+
+```json
+{
+  "timestamp": "2026-06-04T12:30:00",
+  "status": 409,
+  "error": "Conflict",
+  "message": "이미 등록된 차량번호입니다.",
+  "path": "/api/vehicles"
+}
+```
+
 ## 1. 웹 관리자
 
 | 기능 | Method | URL |
