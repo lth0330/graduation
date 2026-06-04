@@ -70,6 +70,9 @@ public class ParkingHistoryEntity {
     @Column(name = "linked_zone", length = 255)
     private String linkedZone;
 
+    @Column(name = "image_path", length = 255)
+    private String imagePath;
+
     @PrePersist
     public void prePersist() {
         if (entryTime == null) {

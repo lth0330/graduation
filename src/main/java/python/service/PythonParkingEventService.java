@@ -144,6 +144,7 @@ public class PythonParkingEventService {
                 .status(HISTORY_PARKED)
                 .parkType(parkType)
                 .linkedZone(normalizeLinkedZone(requestDto.getLinkedZone()))
+                .imagePath(requestDto.getImagePath())
                 .build();
 
         parkingHistoryRepository.save(history);
@@ -165,7 +166,7 @@ public class PythonParkingEventService {
 
         ParkingHistoryEntity savedHistory = parkingHistoryRepository.save(history);
         createParkingNotificationIfNeeded(zone, savedHistory);
-        return result("entry", zone, history);
+        return result("entry", zone, savedHistory);
     }
 
     @Transactional
@@ -342,6 +343,7 @@ public class PythonParkingEventService {
         response.put("plate", history.getPlate());
         response.put("park_type", history.getParkType());
         response.put("linked_zone", history.getLinkedZone());
+        response.put("image_path", history.getImagePath());
         response.put("history_id", history.getId());
         return response;
     }

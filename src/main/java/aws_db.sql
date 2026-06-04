@@ -152,6 +152,7 @@ CREATE TABLE parking_history (
     history_status VARCHAR(20) NOT NULL,
     park_type VARCHAR(30) NOT NULL DEFAULT 'normal',
     linked_zone VARCHAR(255),
+    image_path VARCHAR(255),
     PRIMARY KEY (history_id),
     INDEX idx_parking_history_zone (pz_no),
     INDEX idx_parking_history_car (c_no),
