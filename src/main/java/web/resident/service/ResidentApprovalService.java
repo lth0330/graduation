@@ -44,6 +44,7 @@ public class ResidentApprovalService {
         ResidentEntity resident = findEntity(residentNo);
         resident.setApprovalStatus(ApprovalStatus.APPROVED);
         resident.setRejectReason(null);
+        syncHouseholdResidentCarLimit(resident, findHouseholdResidentCarLimit(resident));
         gmailMailService.sendApprovalMail(resident.getEmail(), resident.getName(), "입주민 회원가입");
         return toApprovalDto(resident);
     }
@@ -91,5 +92,32 @@ public class ResidentApprovalService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private Integer findHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            return resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1;
+        }
+
+        return residentRepository.findByApartment_NoAndDongAndHo(apartmentNo, resident.getDong(), resident.getHo())
+                .stream()
+                .filter(householdResident -> !householdResident.getNo().equals(resident.getNo()))
+                .filter(householdResident -> householdResident.getApprovalStatus() == ApprovalStatus.APPROVED)
+                .map(ResidentEntity::getResidentCarLimit)
+                .filter(limit -> limit != null && limit >= 0)
+                .findFirst()
+                .orElseGet(() -> resident.getResidentCarLimit() != null ? resident.getResidentCarLimit() : 1);
+    }
+
+    private void syncHouseholdResidentCarLimit(ResidentEntity resident, Integer residentCarLimit) {
+        Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            resident.setResidentCarLimit(residentCarLimit);
+            return;
+        }
+
+        residentRepository.findByApartment_NoAndDongAndHo(apartmentNo, resident.getDong(), resident.getHo())
+                .forEach(householdResident -> householdResident.setResidentCarLimit(residentCarLimit));
     }
 }

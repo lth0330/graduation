@@ -25,7 +25,7 @@ TABLES = {
         ["컬럼명", "DB 컬럼명", "타입", "제약조건", "설명", "샘플"],
         ["웹 관리자 번호", "w_no", "int", "PK, auto_increment", "웹 관리자 고유 번호", "1"],
         ["아이디", "w_id", "varchar(255)", "not null, unique", "웹 관리자 로그인 아이디", "admin"],
-        ["비밀번호", "w_pwd", "varchar(255)", "not null, bcrypt", "웹 관리자 로그인 비밀번호", "admin1234"],
+        ["비밀번호", "w_pwd", "varchar(255)", "not null, bcrypt", "웹 관리자 로그인 비밀번호", "1234"],
     ],
     "apartment_manager": [
         ["컬럼명", "DB 컬럼명", "타입", "제약조건", "설명", "샘플"],
