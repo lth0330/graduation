@@ -32,6 +32,12 @@ public class PythonParkingEventController {
         return ResponseEntity.ok(pythonParkingEventService.findZoneStatus(zoneName));
     }
 
+    // 전체 주차장 점유율을 조회한다. FastAPI 차단기 제어에서 만차 여부 판단에 사용한다.
+    @GetMapping("/api/parking/occupancy")
+    public ResponseEntity<Map<String, Object>> findOccupancy() {
+        return ResponseEntity.ok(pythonParkingEventService.findOccupancy());
+    }
+
     // Python이 입차 이벤트를 보내면 주차칸 상태와 주차 이력을 저장한다.
     @PostMapping("/api/parking/entry")
     public ResponseEntity<Map<String, Object>> saveEntry(@RequestBody PythonParkingEntryRequestDto requestDto) {

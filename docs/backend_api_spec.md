@@ -44,6 +44,20 @@ http://localhost:8080
 | 로그인 | POST | `/api/apartment-managers/login` |
 | 마이페이지 | GET | `/api/apartment-managers/{managerNo}/my-page` |
 | 아파트 관리자 대시보드 통계 | GET | `/api/apartment-managers/dashboard/summary` |
+| 차단기 정책 조회 | GET | `/api/apartment-managers/gate-policy` |
+| 차단기 정책 수정 | PATCH | `/api/apartment-managers/gate-policy` |
+
+차단기 정책은 아파트 관리자 권한으로만 조회/수정할 수 있습니다.
+
+```json
+{
+  "apartmentNo": 1,
+  "gateOccupancyBlockEnabled": true
+}
+```
+
+`gateOccupancyBlockEnabled`가 `true`이면 입주민 차량은 점유율과 관계없이 개방하고, 방문차량은 주차장 점유율이 80% 이상이거나 빈자리가 0개일 때 차단합니다.
+`false`이면 방문차량도 점유율 조건을 무시하고 등록 번호판 여부만으로 차단기 개방 여부를 판단합니다.
 
 ## 3. 웹 관리자 - 아파트 관리자 승인
 
@@ -287,6 +301,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 |---|---:|---|
 | 등록 차량 목록 조회 | GET | `/api/parking/cars` |
 | 주차구역 상태 조회 | GET | `/api/parking/zone/{zoneName}` |
+| 전체 주차장 점유율 조회 | GET | `/api/parking/occupancy` |
 | 입차 저장 | POST | `/api/parking/entry` |
 | 출차 저장 | POST | `/api/parking/exit` |
 | 번호판 수정 | POST | `/api/parking/update-plate` |
@@ -301,6 +316,28 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 현재 FastAPI 연동 상태:
 
 - FastAPI `config.py`의 차량 목록 URL은 `/api/parking/cars`를 사용합니다.
+- FastAPI `config.py`의 점유율 URL은 `/api/parking/occupancy`를 사용합니다. 응답은 `total`, `used`, `available`, `rate`입니다.
+- `/api/gate/check`는 등록 차량 여부와 아파트 관리자 차단기 정책을 함께 반영한 최종 `gate_open` 값을 반환합니다.
+- 입차 이벤트는 `image_path`를 받을 수 있지만 현재 DB에는 별도 이미지 경로 컬럼이 없어 저장하지 않습니다.
+
+차단기 차량 확인 응답 예시:
+
+```json
+{
+  "plate": "12가1234",
+  "is_resident": true,
+  "is_registered": true,
+  "is_resident_vehicle": true,
+  "is_visitor": false,
+  "gate_open": true,
+  "occupancy_block_enabled": false,
+  "total": 20,
+  "used": 17,
+  "available": 3,
+  "rate": 0.85,
+  "reason": "관리자 설정에 따라 번호판 등록 여부만 확인했습니다."
+}
+```
 - 번호판 자동 부여는 FastAPI가 `/api/gate/unmatched`로 `history_id`를 찾은 뒤 `/api/gate/assign-plate`에 `history_id`, `plate`를 전달합니다.
 
 ## 16. 상태값
