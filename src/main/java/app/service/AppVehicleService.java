@@ -126,6 +126,10 @@ public class AppVehicleService {
     }
 
     private void validateResidentCarLimit(ResidentEntity resident) {
+        // 👇 [추가된 방어막] 아파트나 세대 정보가 없으면 뻗지 않고 부드럽게 거절합니다!
+        if (resident.getApartment() == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "세대 정보(동/호)가 불확실하여 등록할 수 없습니다.");
+        }
         int limit = (resident.getResidentCarLimit() != null && resident.getResidentCarLimit() > 0)
                 ? resident.getResidentCarLimit()
                 : 1;
@@ -141,6 +145,10 @@ public class AppVehicleService {
     }
 
     private void validateVisitorCarLimit(ResidentEntity resident) {
+        // 👇 [추가된 방어막]
+        if (resident.getApartment() == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "세대 정보(동/호)가 불확실하여 등록할 수 없습니다.");
+        }
         int limit = resident.getVisitorCarLimit() != null ? resident.getVisitorCarLimit() : 2;
 
         // 👇 [변경됨] 방문객 차량도 세대(동/호) 전체 기준으로 셉니다!

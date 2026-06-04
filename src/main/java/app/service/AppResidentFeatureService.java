@@ -40,6 +40,9 @@ import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import jakarta.annotation.PreDestroy; // 👈 맨 위 import 모여있는 곳에 추가
+import org.springframework.context.annotation.Lazy; // 👈 import 추가
+import org.springframework.beans.factory.annotation.Autowired; // 👈 import 추가
 
 
 @Service
@@ -61,6 +64,11 @@ public class AppResidentFeatureService {
     private final ManagerNotificationService managerNotificationService;
     // 👇 [새로 추가] 3분 뒤에 예약을 취소시킬 타이머 도구입니다.
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(5);
+
+// 👇 [추가] 자기 자신의 복제본(Proxy)을 불러와 트랜잭션을 유지하는 마법의 키워드!
+    @Autowired
+    @Lazy
+    private AppResidentFeatureService self;
 
     public Map<String, Object> findInquiries(Integer residentNo) {
         Map<String, Object> response = success();
@@ -304,7 +312,8 @@ public class AppResidentFeatureService {
                                     retryItem.setStatus("empty");
                                     retryDto.setUpdates(Collections.singletonList(retryItem));
 
-                                    updateParking(retryDto);
+                                     // ✅ 변경 후: self를 붙여서 부르면 트랜잭션이 완벽하게 유지됩니다!
+                                     self.updateParking(retryDto);
                                 }
                             });
                         }, 3, TimeUnit.MINUTES); // 👈 (여기를 1로 바꾸면 1분 타이머가 됩니다)
@@ -414,4 +423,13 @@ public class AppResidentFeatureService {
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
+    // 👇 파일 맨 밑의 마지막 괄호(}) 바로 위에 이 함수를 통째로 추가하세요!
+    @PreDestroy
+    public void destroyTimer() {
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdown();
+            System.out.println("주차 3분 예약 타이머가 안전하게 종료되었습니다.");
+        }
+    }
 }
+
