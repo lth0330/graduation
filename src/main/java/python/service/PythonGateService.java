@@ -24,6 +24,7 @@ import web.parking.entity.ParkingZoneEntity;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ParkingHistoryRepository;
 import web.parking.repository.ParkingLotRepository;
+import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.notification.entity.ManagerNotificationEntity;
 import web.notification.service.ManagerNotificationService;
@@ -43,6 +44,7 @@ public class PythonGateService {
     private final ParkingHistoryRepository parkingHistoryRepository;
     private final GateEntryLogRepository gateEntryLogRepository;
     private final ParkingLotRepository parkingLotRepository;
+    private final ParkingZoneRepository parkingZoneRepository;
     private final ApartmentRepository apartmentRepository;
     private final ManagerNotificationService managerNotificationService;
 
@@ -197,15 +199,17 @@ public class PythonGateService {
         String imagePath = firstText(request, "image_path", "imagePath", "snapshot_path");
         Integer apartmentNo = firstInteger(request, "apartment_no", "apartmentNo", "a_no");
         Integer historyId = firstInteger(request, "history_id", "historyId");
+        String zoneName = firstText(request, "zone", "history_zone", "parking_zone");
+        String eventTime = firstText(request, "time", "alert_time", "entry_time", "created_at");
 
-        ApartmentEntity apartment = findAlertApartment(apartmentNo, historyId);
+        ApartmentEntity apartment = findAlertApartment(apartmentNo, historyId, zoneName);
         if (apartment == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "알림을 저장할 아파트 정보를 찾을 수 없습니다.");
         }
 
         boolean ocrError = "ocr_error".equalsIgnoreCase(normalizedType);
         String title = ocrError ? "번호판 인식 실패" : "차단기 이상 알림";
-        String message = buildGateAlertMessage(ocrError, plate, candidates, imagePath);
+        String message = buildGateAlertMessage(ocrError, zoneName, eventTime, plate, candidates, imagePath);
         String referenceType = ocrError ? "parking_ocr" : "gate_alert";
 
         ManagerNotificationEntity notification = managerNotificationService.createApartmentNotification(
@@ -223,6 +227,8 @@ public class PythonGateService {
         response.put("notification_no", notification != null ? notification.getNo() : null);
         response.put("apartment_no", apartment.getNo());
         response.put("type", normalizedType);
+        response.put("zone", zoneName);
+        response.put("time", eventTime);
         response.put("plate", plate);
         response.put("candidates", candidates);
         response.put("image_path", imagePath);
@@ -230,13 +236,19 @@ public class PythonGateService {
         return response;
     }
 
-    private ApartmentEntity findAlertApartment(Integer apartmentNo, Integer historyId) {
+    private ApartmentEntity findAlertApartment(Integer apartmentNo, Integer historyId, String zoneName) {
         if (apartmentNo != null) {
             return apartmentRepository.findById(apartmentNo).orElse(null);
         }
         if (historyId != null) {
             return parkingHistoryRepository.findById(historyId)
                     .map(ParkingHistoryEntity::getParkingZone)
+                    .map(ParkingZoneEntity::getParkingLot)
+                    .map(ParkingLotEntity::getApartment)
+                    .orElse(null);
+        }
+        if (zoneName != null) {
+            return parkingZoneRepository.findByAreaNumber(zoneName)
                     .map(ParkingZoneEntity::getParkingLot)
                     .map(ParkingLotEntity::getApartment)
                     .orElse(null);
@@ -384,12 +396,25 @@ public class PythonGateService {
         return "차단기 개방 조건을 만족하지 않습니다.";
     }
 
-    private String buildGateAlertMessage(boolean ocrError, String plate, String candidates, String imagePath) {
+    private String buildGateAlertMessage(
+            boolean ocrError,
+            String zoneName,
+            String eventTime,
+            String plate,
+            String candidates,
+            String imagePath
+    ) {
         StringBuilder message = new StringBuilder();
         if (ocrError) {
             message.append("OCR 인식 불가 차량이 입차했습니다.");
         } else {
             message.append("Python 차단기에서 이상 알림을 전송했습니다.");
+        }
+        if (zoneName != null) {
+            message.append(" 구역: ").append(zoneName).append(".");
+        }
+        if (eventTime != null) {
+            message.append(" 시간: ").append(eventTime).append(".");
         }
         if (plate != null) {
             message.append(" 차량번호: ").append(plate).append(".");
