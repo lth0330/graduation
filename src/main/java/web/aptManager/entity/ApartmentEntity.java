@@ -43,10 +43,16 @@ public class ApartmentEntity {
     @Column(name = "gate_occupancy_block_enabled", nullable = false)
     private Boolean gateOccupancyBlockEnabled;
 
+    @Column(name = "gate_force_open_enabled", nullable = false)
+    private Boolean gateForceOpenEnabled;
+
     @PrePersist
     public void prePersist() {
         if (gateOccupancyBlockEnabled == null) {
             gateOccupancyBlockEnabled = true;
+        }
+        if (gateForceOpenEnabled == null) {
+            gateForceOpenEnabled = false;
         }
     }
 

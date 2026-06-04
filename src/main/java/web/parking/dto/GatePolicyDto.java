@@ -15,4 +15,5 @@ public class GatePolicyDto {
 
     private Integer apartmentNo;
     private Boolean gateOccupancyBlockEnabled;
+    private Boolean gateForceOpenEnabled;
 }

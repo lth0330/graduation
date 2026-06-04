@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import python.entity.GateEntryLogEntity;
 import python.repository.GateEntryLogRepository;
 import web.aptManager.entity.ApartmentEntity;
+import web.aptManager.repository.ApartmentRepository;
 import web.parking.entity.ParkingHistoryEntity;
 import web.parking.entity.ParkingLotEntity;
 import web.parking.entity.ParkingZoneEntity;
@@ -40,9 +41,10 @@ public class PythonGateService {
     private final ParkingHistoryRepository parkingHistoryRepository;
     private final GateEntryLogRepository gateEntryLogRepository;
     private final ParkingLotRepository parkingLotRepository;
+    private final ApartmentRepository apartmentRepository;
 
     // 주민 차량과 방문 차량 테이블을 모두 확인하고 관리자 차단 정책까지 반영해 차단기 개방 여부를 만든다.
-    public Map<String, Object> checkPlate(String plate) {
+    public Map<String, Object> checkPlate(String plate, Integer apartmentNo) {
         String normalizedPlate = normalizePlate(plate);
         ResidentVehicleEntity residentVehicle = normalizedPlate != null ? findResidentVehicle(normalizedPlate) : null;
         RegisteredCarEntity visitorVehicle = normalizedPlate != null ? findVisitorVehicle(normalizedPlate) : null;
@@ -50,15 +52,17 @@ public class PythonGateService {
         boolean isVisitorVehicle = visitorVehicle != null;
         boolean isRegistered = isResidentVehicle || isVisitorVehicle;
 
-        ApartmentEntity apartment = findRegisteredApartment(residentVehicle, visitorVehicle);
+        ApartmentEntity apartment = findGateApartment(apartmentNo, residentVehicle, visitorVehicle);
         boolean occupancyBlockEnabled = isOccupancyBlockEnabled(apartment);
+        boolean forceOpenEnabled = isForceOpenEnabled(apartment);
         Occupancy occupancy = calculateOccupancy(apartment);
         boolean full = occupancy.available() <= 0 && occupancy.total() > 0;
         boolean overThreshold = occupancy.rate() >= GATE_OCCUPANCY_BLOCK_RATE;
         boolean blockedByOccupancy = isVisitorVehicle && occupancyBlockEnabled && (full || overThreshold);
-        boolean gateOpen = isResidentVehicle || (isVisitorVehicle && !blockedByOccupancy);
+        boolean gateOpen = forceOpenEnabled || isResidentVehicle || (isVisitorVehicle && !blockedByOccupancy);
 
         Map<String, Object> response = new LinkedHashMap<>();
+        response.put("apartment_no", apartment != null ? apartment.getNo() : null);
         response.put("plate", normalizedPlate);
         // 기존 Python 코드 호환용: 현재는 주민/방문 등록 차량이면 true로 사용한다.
         response.put("is_resident", isRegistered);
@@ -67,6 +71,7 @@ public class PythonGateService {
         response.put("is_visitor", isVisitorVehicle);
         response.put("gate_open", gateOpen);
         response.put("occupancy_block_enabled", occupancyBlockEnabled);
+        response.put("force_open_enabled", forceOpenEnabled);
         response.put("total", occupancy.total());
         response.put("used", occupancy.used());
         response.put("available", occupancy.available());
@@ -77,9 +82,25 @@ public class PythonGateService {
                 isVisitorVehicle,
                 gateOpen,
                 occupancyBlockEnabled,
+                forceOpenEnabled,
                 full,
                 overThreshold
         ));
+        return response;
+    }
+
+    public Map<String, Object> findGateControl(Integer apartmentNo) {
+        ApartmentEntity apartment = findGateApartment(apartmentNo, null, null);
+        boolean forceOpenEnabled = isForceOpenEnabled(apartment);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("apartment_no", apartment != null ? apartment.getNo() : null);
+        response.put("gate_force_open_enabled", forceOpenEnabled);
+        response.put("gate_open", forceOpenEnabled);
+        response.put("mode", forceOpenEnabled ? "FORCE_OPEN" : "NORMAL");
+        response.put("reason", forceOpenEnabled
+                ? "관리자 설정에 따라 차단기를 상시 개방합니다."
+                : "차단기가 일반 번호판 확인 모드로 동작합니다.");
         return response;
     }
 
@@ -230,20 +251,34 @@ public class PythonGateService {
                         .orElse(null));
     }
 
-    private ApartmentEntity findRegisteredApartment(ResidentVehicleEntity residentVehicle, RegisteredCarEntity visitorVehicle) {
+    private ApartmentEntity findGateApartment(
+            Integer apartmentNo,
+            ResidentVehicleEntity residentVehicle,
+            RegisteredCarEntity visitorVehicle
+    ) {
+        if (apartmentNo != null) {
+            return apartmentRepository.findById(apartmentNo).orElse(null);
+        }
         if (residentVehicle != null && residentVehicle.getResident() != null) {
             return residentVehicle.getResident().getApartment();
         }
         if (visitorVehicle != null && visitorVehicle.getResident() != null) {
             return visitorVehicle.getResident().getApartment();
         }
-        return null;
+        List<ApartmentEntity> apartments = apartmentRepository.findAll();
+        return apartments.size() == 1 ? apartments.get(0) : null;
     }
 
     private boolean isOccupancyBlockEnabled(ApartmentEntity apartment) {
         return apartment == null
                 || apartment.getGateOccupancyBlockEnabled() == null
                 || apartment.getGateOccupancyBlockEnabled();
+    }
+
+    private boolean isForceOpenEnabled(ApartmentEntity apartment) {
+        return apartment != null
+                && apartment.getGateForceOpenEnabled() != null
+                && apartment.getGateForceOpenEnabled();
     }
 
     private Occupancy calculateOccupancy(ApartmentEntity apartment) {
@@ -272,9 +307,13 @@ public class PythonGateService {
             boolean isVisitorVehicle,
             boolean gateOpen,
             boolean occupancyBlockEnabled,
+            boolean forceOpenEnabled,
             boolean full,
             boolean overThreshold
     ) {
+        if (forceOpenEnabled) {
+            return "관리자 설정에 따라 차단기를 상시 개방합니다.";
+        }
         if (!isRegistered) {
             return "등록되지 않은 차량입니다.";
         }

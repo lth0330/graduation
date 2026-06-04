@@ -10,4 +10,5 @@ import lombok.Setter;
 public class PythonGateCheckRequestDto {
 
     private String plate;
+    private Integer apartmentNo;
 }

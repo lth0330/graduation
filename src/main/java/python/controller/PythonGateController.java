@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;
 import python.dto.PythonGateCheckRequestDto;
@@ -20,7 +21,14 @@ public class PythonGateController {
     @PostMapping({"/api/gate/check", "/api/check-plate"})
     public ResponseEntity<Map<String, Object>> checkPlate(@RequestBody PythonGateCheckRequestDto requestDto) {
         String plate = requestDto != null ? requestDto.getPlate() : null;
-        return ResponseEntity.ok(pythonGateService.checkPlate(plate));
+        Integer apartmentNo = requestDto != null ? requestDto.getApartmentNo() : null;
+        return ResponseEntity.ok(pythonGateService.checkPlate(plate, apartmentNo));
+    }
+
+    // Python/아두이노 장비가 차단기 상시개방 여부를 주기적으로 확인할 때 사용한다.
+    @GetMapping("/api/gate/control")
+    public ResponseEntity<Map<String, Object>> findGateControl(@RequestParam(required = false) Integer apartmentNo) {
+        return ResponseEntity.ok(pythonGateService.findGateControl(apartmentNo));
     }
 
     // 차단기 통과 결과를 gate_entry_log 테이블에 저장한다.

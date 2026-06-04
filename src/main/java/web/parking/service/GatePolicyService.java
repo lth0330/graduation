@@ -25,12 +25,19 @@ public class GatePolicyService {
 
     @Transactional
     public GatePolicyDto updateMyPolicy(Map<String, Object> principal, GatePolicyRequestDto requestDto) {
-        if (requestDto == null || requestDto.getGateOccupancyBlockEnabled() == null) {
+        if (requestDto == null
+                || (requestDto.getGateOccupancyBlockEnabled() == null
+                && requestDto.getGateForceOpenEnabled() == null)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "차단기 정책 설정값은 필수입니다.");
         }
 
         ApartmentEntity apartment = findMyApartment(principal);
-        apartment.setGateOccupancyBlockEnabled(requestDto.getGateOccupancyBlockEnabled());
+        if (requestDto.getGateOccupancyBlockEnabled() != null) {
+            apartment.setGateOccupancyBlockEnabled(requestDto.getGateOccupancyBlockEnabled());
+        }
+        if (requestDto.getGateForceOpenEnabled() != null) {
+            apartment.setGateForceOpenEnabled(requestDto.getGateForceOpenEnabled());
+        }
         return toDto(apartment);
     }
 
@@ -49,11 +56,16 @@ public class GatePolicyService {
         return GatePolicyDto.builder()
                 .apartmentNo(apartment.getNo())
                 .gateOccupancyBlockEnabled(isOccupancyBlockEnabled(apartment))
+                .gateForceOpenEnabled(isForceOpenEnabled(apartment))
                 .build();
     }
 
     private boolean isOccupancyBlockEnabled(ApartmentEntity apartment) {
         return apartment.getGateOccupancyBlockEnabled() == null || apartment.getGateOccupancyBlockEnabled();
+    }
+
+    private boolean isForceOpenEnabled(ApartmentEntity apartment) {
+        return apartment.getGateForceOpenEnabled() != null && apartment.getGateForceOpenEnabled();
     }
 
     private Integer getInteger(Map<String, Object> principal, String key) {
