@@ -45,6 +45,7 @@ public class ApartmentManagerApprovalController {
             @PathVariable Integer managerNo,
             @RequestBody ApartmentManagerRejectRequestDto requestDto
     ) {
-        return ResponseEntity.ok(apartmentManagerApprovalService.reject(managerNo, requestDto.getRejectReason()));
+        String rejectReason = requestDto != null ? requestDto.getRejectReason() : null;
+        return ResponseEntity.ok(apartmentManagerApprovalService.reject(managerNo, rejectReason));
     }
 }

@@ -22,9 +22,11 @@ import python.dto.PythonParkingEntryRequestDto;
 import python.dto.PythonParkingExitRequestDto;
 import python.dto.PythonParkingPlateUpdateRequestDto;
 import web.parking.entity.ParkingHistoryEntity;
+import web.parking.entity.ParkingLotEntity;
 import web.parking.entity.ParkingZoneEntity;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ParkingHistoryRepository;
+import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.notification.service.ManagerNotificationService;
@@ -52,6 +54,7 @@ public class PythonParkingEventService {
     private static final DateTimeFormatter PYTHON_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ParkingZoneRepository parkingZoneRepository;
+    private final ParkingLotRepository parkingLotRepository;
     private final ParkingHistoryRepository parkingHistoryRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
@@ -76,6 +79,30 @@ public class PythonParkingEventService {
         response.put("zone", zone.getAreaNumber());
         response.put("status_type", zone.getStatus());
         response.put("current_car_number", zone.getCurrentCarNumber());
+        return response;
+    }
+
+    // FastAPI 차단기 제어용 전체 주차장 점유율을 계산한다.
+    public Map<String, Object> findOccupancy() {
+        List<ParkingLotEntity> parkingLots = parkingLotRepository.findAll();
+        int total = parkingLots.stream()
+                .map(ParkingLotEntity::getTotalSpaces)
+                .filter(value -> value != null && value > 0)
+                .mapToInt(Integer::intValue)
+                .sum();
+        int used = parkingLots.stream()
+                .map(ParkingLotEntity::getUsedSpaces)
+                .filter(value -> value != null && value > 0)
+                .mapToInt(Integer::intValue)
+                .sum();
+        int available = Math.max(total - used, 0);
+        double rate = total > 0 ? (double) used / total : 0.0;
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("total", total);
+        response.put("used", used);
+        response.put("available", available);
+        response.put("rate", rate);
         return response;
     }
 

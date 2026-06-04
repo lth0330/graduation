@@ -10,6 +10,21 @@ http://localhost:8080
 
 현재 백엔드는 웹 관리자/아파트 관리자 API, Flutter 앱 API, Python/FastAPI 연동 API를 함께 제공합니다.
 
+## 공통 에러 응답
+
+서비스에서 `ResponseStatusException`으로 던진 오류는 다음 형식으로 반환됩니다.
+프론트에서는 `message` 값을 사용자 안내 문구로 사용할 수 있습니다.
+
+```json
+{
+  "timestamp": "2026-06-04T12:30:00",
+  "status": 409,
+  "error": "Conflict",
+  "message": "이미 등록된 차량번호입니다.",
+  "path": "/api/vehicles"
+}
+```
+
 ## 1. 웹 관리자
 
 | 기능 | Method | URL |
@@ -29,6 +44,20 @@ http://localhost:8080
 | 로그인 | POST | `/api/apartment-managers/login` |
 | 마이페이지 | GET | `/api/apartment-managers/{managerNo}/my-page` |
 | 아파트 관리자 대시보드 통계 | GET | `/api/apartment-managers/dashboard/summary` |
+| 차단기 정책 조회 | GET | `/api/apartment-managers/gate-policy` |
+| 차단기 정책 수정 | PATCH | `/api/apartment-managers/gate-policy` |
+
+차단기 정책은 아파트 관리자 권한으로만 조회/수정할 수 있습니다.
+
+```json
+{
+  "apartmentNo": 1,
+  "gateOccupancyBlockEnabled": true
+}
+```
+
+`gateOccupancyBlockEnabled`가 `true`이면 입주민 차량은 점유율과 관계없이 개방하고, 방문차량은 주차장 점유율이 80% 이상이거나 빈자리가 0개일 때 차단합니다.
+`false`이면 방문차량도 점유율 조건을 무시하고 등록 번호판 여부만으로 차단기 개방 여부를 판단합니다.
 
 ## 3. 웹 관리자 - 아파트 관리자 승인
 
@@ -39,6 +68,9 @@ http://localhost:8080
 | 가입 승인 | PATCH | `/api/web-admin/signup-requests/{managerNo}/approve` |
 | 가입 거절 | PATCH | `/api/web-admin/signup-requests/{managerNo}/reject` |
 
+승인/거절은 `PENDING` 상태의 신청만 처리할 수 있습니다. 이미 승인 또는 거절된 신청을 다시 처리하면 `409 Conflict`와 안내 메시지를 반환합니다.
+거절 요청의 `rejectReason`이 비어 있으면 `400 Bad Request`를 반환합니다.
+
 ## 4. 입주민 승인
 
 | 기능 | Method | URL |
@@ -47,6 +79,9 @@ http://localhost:8080
 | 입주민 가입 신청 상세 | GET | `/api/resident-signup-requests/{residentNo}` |
 | 입주민 승인 | PATCH | `/api/resident-signup-requests/{residentNo}/approve` |
 | 입주민 거절 | PATCH | `/api/resident-signup-requests/{residentNo}/reject` |
+
+승인/거절은 `PENDING` 상태의 신청만 처리할 수 있습니다. 이미 승인 또는 거절된 신청을 다시 처리하면 `409 Conflict`와 안내 메시지를 반환합니다.
+거절 요청의 `rejectReason`이 비어 있으면 `400 Bad Request`를 반환합니다.
 
 ## 5. 입주민 관리
 
@@ -60,6 +95,8 @@ http://localhost:8080
 
 입주민 등록/수정 시 세대 입주민 차량 등록 제한과 방문차량 등록 제한 값을 함께 저장할 수 있습니다.
 입주민 차량은 개인별 카운트가 아니라 같은 아파트의 같은 동/호수 세대 기준으로 카운트합니다.
+`residentCarLimit`는 `user` 테이블에 저장되지만 해당 주민이 속한 세대의 차량 제한값으로 해석합니다.
+관리자가 값을 등록/수정하거나 입주민 가입 신청을 승인하면 같은 아파트/동/호 주민의 `residentCarLimit`도 같은 값으로 맞춥니다.
 
 ```json
 {
@@ -264,6 +301,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 |---|---:|---|
 | 등록 차량 목록 조회 | GET | `/api/parking/cars` |
 | 주차구역 상태 조회 | GET | `/api/parking/zone/{zoneName}` |
+| 전체 주차장 점유율 조회 | GET | `/api/parking/occupancy` |
 | 입차 저장 | POST | `/api/parking/entry` |
 | 출차 저장 | POST | `/api/parking/exit` |
 | 번호판 수정 | POST | `/api/parking/update-plate` |
@@ -278,6 +316,28 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 현재 FastAPI 연동 상태:
 
 - FastAPI `config.py`의 차량 목록 URL은 `/api/parking/cars`를 사용합니다.
+- FastAPI `config.py`의 점유율 URL은 `/api/parking/occupancy`를 사용합니다. 응답은 `total`, `used`, `available`, `rate`입니다.
+- `/api/gate/check`는 등록 차량 여부와 아파트 관리자 차단기 정책을 함께 반영한 최종 `gate_open` 값을 반환합니다.
+- 입차 이벤트는 `image_path`를 받을 수 있지만 현재 DB에는 별도 이미지 경로 컬럼이 없어 저장하지 않습니다.
+
+차단기 차량 확인 응답 예시:
+
+```json
+{
+  "plate": "12가1234",
+  "is_resident": true,
+  "is_registered": true,
+  "is_resident_vehicle": true,
+  "is_visitor": false,
+  "gate_open": true,
+  "occupancy_block_enabled": false,
+  "total": 20,
+  "used": 17,
+  "available": 3,
+  "rate": 0.85,
+  "reason": "관리자 설정에 따라 번호판 등록 여부만 확인했습니다."
+}
+```
 - 번호판 자동 부여는 FastAPI가 `/api/gate/unmatched`로 `history_id`를 찾은 뒤 `/api/gate/assign-plate`에 `history_id`, `plate`를 전달합니다.
 
 ## 16. 상태값

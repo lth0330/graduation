@@ -21,4 +21,7 @@ public class PythonParkingEntryRequestDto {
 
     @JsonProperty("entry_time")
     private String entryTime;
+
+    @JsonProperty("image_path")
+    private String imagePath;
 }

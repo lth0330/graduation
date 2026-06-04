@@ -54,6 +54,7 @@ public class ResidentManagementService {
         ApartmentEntity apartment = apartmentRepository.findById(requestDto.getApartmentNo())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 아파트입니다."));
 
+        Integer residentCarLimit = normalizeLimit(requestDto.getResidentCarLimit(), 1);
         ResidentEntity resident = ResidentEntity.builder()
                 .apartment(apartment)
                 .loginId(requestDto.getLoginId().trim())
@@ -64,11 +65,13 @@ public class ResidentManagementService {
                 .ho(requestDto.getUnit().trim())
                 .phone(requestDto.getPhone() != null ? requestDto.getPhone().trim() : null)
                 .approvalStatus(ApprovalStatus.APPROVED)
-                .residentCarLimit(normalizeLimit(requestDto.getResidentCarLimit(), 1))
+                .residentCarLimit(residentCarLimit)
                 .visitorCarLimit(normalizeLimit(requestDto.getVisitorCarLimit(), 2))
                 .build();
 
-        return toManagementDto(residentRepository.save(resident));
+        ResidentEntity savedResident = residentRepository.save(resident);
+        syncHouseholdResidentCarLimit(savedResident, residentCarLimit);
+        return toManagementDto(savedResident);
     }
 
     @Transactional
@@ -91,13 +94,15 @@ public class ResidentManagementService {
         if (requestDto.getPhone() != null) {
             resident.setPhone(requestDto.getPhone());
         }
-        if (requestDto.getResidentCarLimit() != null) {
-            resident.setResidentCarLimit(normalizeLimit(requestDto.getResidentCarLimit(), 1));
-        }
+        Integer residentCarLimit = requestDto.getResidentCarLimit() != null
+                ? normalizeLimit(requestDto.getResidentCarLimit(), 1)
+                : findHouseholdResidentCarLimit(resident);
+        resident.setResidentCarLimit(residentCarLimit);
         if (requestDto.getVisitorCarLimit() != null) {
             resident.setVisitorCarLimit(normalizeLimit(requestDto.getVisitorCarLimit(), 2));
         }
 
+        syncHouseholdResidentCarLimit(resident, residentCarLimit);
         return toManagementDto(resident);
     }
 
@@ -178,5 +183,38 @@ public class ResidentManagementService {
                 resident.getDong(),
                 resident.getHo()
         );
+    }
+
+    private Integer findHouseholdResidentCarLimit(ResidentEntity resident) {
+        Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            return getResidentCarLimit(resident);
+        }
+
+        return residentRepository.findByApartment_NoAndDongAndHo(apartmentNo, resident.getDong(), resident.getHo())
+                .stream()
+                .filter(householdResident -> !householdResident.getNo().equals(resident.getNo()))
+                .filter(householdResident -> householdResident.getApprovalStatus() == ApprovalStatus.APPROVED)
+                .map(ResidentEntity::getResidentCarLimit)
+                .filter(limit -> limit != null && limit >= 0)
+                .findFirst()
+                .orElseGet(() -> residentRepository.findByApartment_NoAndDongAndHo(apartmentNo, resident.getDong(), resident.getHo())
+                        .stream()
+                        .filter(householdResident -> !householdResident.getNo().equals(resident.getNo()))
+                        .map(ResidentEntity::getResidentCarLimit)
+                        .filter(limit -> limit != null && limit >= 0)
+                        .findFirst()
+                        .orElseGet(() -> getResidentCarLimit(resident)));
+    }
+
+    private void syncHouseholdResidentCarLimit(ResidentEntity resident, Integer residentCarLimit) {
+        Integer apartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (apartmentNo == null || isBlank(resident.getDong()) || isBlank(resident.getHo())) {
+            resident.setResidentCarLimit(residentCarLimit);
+            return;
+        }
+
+        residentRepository.findByApartment_NoAndDongAndHo(apartmentNo, resident.getDong(), resident.getHo())
+                .forEach(householdResident -> householdResident.setResidentCarLimit(residentCarLimit));
     }
 }

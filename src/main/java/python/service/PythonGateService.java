@@ -1,5 +1,6 @@
 package python.service;
 
+import app.entity.RegisteredCarEntity;
 import app.repository.RegisteredCarRepository;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -15,10 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import python.entity.GateEntryLogEntity;
 import python.repository.GateEntryLogRepository;
+import web.aptManager.entity.ApartmentEntity;
 import web.parking.entity.ParkingHistoryEntity;
+import web.parking.entity.ParkingLotEntity;
 import web.parking.entity.ParkingZoneEntity;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ParkingHistoryRepository;
+import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ResidentVehicleRepository;
 
 @Service
@@ -28,23 +32,54 @@ public class PythonGateService {
 
     private static final String HISTORY_PARKED = "PARKED";
     private static final String UNKNOWN_PLATE = "UNKNOWN";
+    private static final double GATE_OCCUPANCY_BLOCK_RATE = 0.8;
     private static final DateTimeFormatter PYTHON_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ResidentVehicleRepository residentVehicleRepository;
     private final RegisteredCarRepository registeredCarRepository;
     private final ParkingHistoryRepository parkingHistoryRepository;
     private final GateEntryLogRepository gateEntryLogRepository;
+    private final ParkingLotRepository parkingLotRepository;
 
-    // 주민 차량과 방문 차량 테이블을 모두 확인해서 차단기 개방 여부 판단에 필요한 값을 만든다.
+    // 주민 차량과 방문 차량 테이블을 모두 확인하고 관리자 차단 정책까지 반영해 차단기 개방 여부를 만든다.
     public Map<String, Object> checkPlate(String plate) {
         String normalizedPlate = normalizePlate(plate);
-        boolean isRegistered = normalizedPlate != null
-                && (residentVehicleRepository.existsByNumber(normalizedPlate)
-                || registeredCarRepository.existsByNumber(normalizedPlate)
-                || existsByCompactPlate(normalizedPlate));
+        ResidentVehicleEntity residentVehicle = normalizedPlate != null ? findResidentVehicle(normalizedPlate) : null;
+        RegisteredCarEntity visitorVehicle = normalizedPlate != null ? findVisitorVehicle(normalizedPlate) : null;
+        boolean isResidentVehicle = residentVehicle != null;
+        boolean isVisitorVehicle = visitorVehicle != null;
+        boolean isRegistered = isResidentVehicle || isVisitorVehicle;
+
+        ApartmentEntity apartment = findRegisteredApartment(residentVehicle, visitorVehicle);
+        boolean occupancyBlockEnabled = isOccupancyBlockEnabled(apartment);
+        Occupancy occupancy = calculateOccupancy(apartment);
+        boolean full = occupancy.available() <= 0 && occupancy.total() > 0;
+        boolean overThreshold = occupancy.rate() >= GATE_OCCUPANCY_BLOCK_RATE;
+        boolean blockedByOccupancy = isVisitorVehicle && occupancyBlockEnabled && (full || overThreshold);
+        boolean gateOpen = isResidentVehicle || (isVisitorVehicle && !blockedByOccupancy);
 
         Map<String, Object> response = new LinkedHashMap<>();
+        response.put("plate", normalizedPlate);
+        // 기존 Python 코드 호환용: 현재는 주민/방문 등록 차량이면 true로 사용한다.
         response.put("is_resident", isRegistered);
+        response.put("is_registered", isRegistered);
+        response.put("is_resident_vehicle", isResidentVehicle);
+        response.put("is_visitor", isVisitorVehicle);
+        response.put("gate_open", gateOpen);
+        response.put("occupancy_block_enabled", occupancyBlockEnabled);
+        response.put("total", occupancy.total());
+        response.put("used", occupancy.used());
+        response.put("available", occupancy.available());
+        response.put("rate", occupancy.rate());
+        response.put("reason", buildGateReason(
+                isRegistered,
+                isResidentVehicle,
+                isVisitorVehicle,
+                gateOpen,
+                occupancyBlockEnabled,
+                full,
+                overThreshold
+        ));
         return response;
     }
 
@@ -56,8 +91,8 @@ public class PythonGateService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "plate or c_number is required.");
         }
 
-        boolean isResident = firstBoolean(request, "gate_is_resident", "is_resident");
-        boolean gateOpen = firstBoolean(request, "gate_open") || isResident;
+        boolean isResident = firstBoolean(request, "gate_is_resident", "is_resident", "is_registered");
+        boolean gateOpen = hasKey(request, "gate_open") ? firstBoolean(request, "gate_open") : isResident;
         LocalDateTime gateTime = parseDateTime(firstText(request, "gate_time", "entry_time", "time"));
 
         GateEntryLogEntity savedLog = gateEntryLogRepository.save(GateEntryLogEntity.builder()
@@ -181,6 +216,91 @@ public class PythonGateService {
                         .filter(vehicle -> compact(vehicle.getNumber()).equals(compact(plate)))
                         .findFirst()
                         .orElse(null));
+    }
+
+    private RegisteredCarEntity findVisitorVehicle(String plate) {
+        if (plate == null) {
+            return null;
+        }
+        return registeredCarRepository.findFirstByNumber(plate)
+                .orElseGet(() -> registeredCarRepository.findAll()
+                        .stream()
+                        .filter(vehicle -> compact(vehicle.getNumber()).equals(compact(plate)))
+                        .findFirst()
+                        .orElse(null));
+    }
+
+    private ApartmentEntity findRegisteredApartment(ResidentVehicleEntity residentVehicle, RegisteredCarEntity visitorVehicle) {
+        if (residentVehicle != null && residentVehicle.getResident() != null) {
+            return residentVehicle.getResident().getApartment();
+        }
+        if (visitorVehicle != null && visitorVehicle.getResident() != null) {
+            return visitorVehicle.getResident().getApartment();
+        }
+        return null;
+    }
+
+    private boolean isOccupancyBlockEnabled(ApartmentEntity apartment) {
+        return apartment == null
+                || apartment.getGateOccupancyBlockEnabled() == null
+                || apartment.getGateOccupancyBlockEnabled();
+    }
+
+    private Occupancy calculateOccupancy(ApartmentEntity apartment) {
+        List<ParkingLotEntity> parkingLots = apartment != null && apartment.getNo() != null
+                ? parkingLotRepository.findByApartment_No(apartment.getNo())
+                : parkingLotRepository.findAll();
+
+        int total = parkingLots.stream()
+                .map(ParkingLotEntity::getTotalSpaces)
+                .filter(value -> value != null && value > 0)
+                .mapToInt(Integer::intValue)
+                .sum();
+        int used = parkingLots.stream()
+                .map(ParkingLotEntity::getUsedSpaces)
+                .filter(value -> value != null && value > 0)
+                .mapToInt(Integer::intValue)
+                .sum();
+        int available = Math.max(total - used, 0);
+        double rate = total > 0 ? (double) used / total : 0.0;
+        return new Occupancy(total, used, available, rate);
+    }
+
+    private String buildGateReason(
+            boolean isRegistered,
+            boolean isResidentVehicle,
+            boolean isVisitorVehicle,
+            boolean gateOpen,
+            boolean occupancyBlockEnabled,
+            boolean full,
+            boolean overThreshold
+    ) {
+        if (!isRegistered) {
+            return "등록되지 않은 차량입니다.";
+        }
+        if (isResidentVehicle) {
+            return "입주민 등록 차량은 주차장 점유율과 관계없이 개방합니다.";
+        }
+        if (gateOpen && !occupancyBlockEnabled) {
+            return "관리자 설정에 따라 방문차량도 번호판 등록 여부만 확인했습니다.";
+        }
+        if (gateOpen && isVisitorVehicle) {
+            return "방문 등록 차량이며 주차장 혼잡도 조건을 통과했습니다.";
+        }
+        if (full) {
+            return "주차장이 만차라 방문차량은 입차할 수 없습니다.";
+        }
+        if (overThreshold) {
+            return "주차장 점유율이 80% 이상이라 방문차량은 입차할 수 없습니다.";
+        }
+        return "차단기 개방 조건을 만족하지 않습니다.";
+    }
+
+    private boolean hasKey(Map<String, Object> request, String key) {
+        return request != null && request.containsKey(key);
+    }
+
+    private record Occupancy(int total, int used, int available, double rate) {
     }
 
     private String firstText(Map<String, Object> request, String... keys) {

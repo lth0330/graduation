@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,6 +39,16 @@ public class ApartmentEntity {
 
     @Column(name = "a_detail_address")
     private String detailAddress;
+
+    @Column(name = "gate_occupancy_block_enabled", nullable = false)
+    private Boolean gateOccupancyBlockEnabled;
+
+    @PrePersist
+    public void prePersist() {
+        if (gateOccupancyBlockEnabled == null) {
+            gateOccupancyBlockEnabled = true;
+        }
+    }
 
     public ApartmentInfoDto toDTO() {
         return ApartmentInfoDto.builder()

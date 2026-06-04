@@ -15,7 +15,7 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO web_manager (w_no, w_id, w_pwd)
 VALUES
-    -- 로그인 확인용 평문 비밀번호: admin1234
+    -- 로그인 확인용 평문 비밀번호: 1234
     (1, 'admin', '$2a$10$a1cFmXtlqoCR.ZCiGRvJaOUXr7gHqWM.tBJg37oKsIABeuPkFoXWy')
 ON DUPLICATE KEY UPDATE
     w_id = VALUES(w_id),

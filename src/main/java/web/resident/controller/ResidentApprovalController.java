@@ -46,6 +46,7 @@ public class ResidentApprovalController {
             @PathVariable Integer residentNo,
             @RequestBody ResidentRejectRequestDto requestDto
     ) {
-        return ResponseEntity.ok(residentApprovalService.reject(residentNo, requestDto.getRejectReason()));
+        String rejectReason = requestDto != null ? requestDto.getRejectReason() : null;
+        return ResponseEntity.ok(residentApprovalService.reject(residentNo, rejectReason));
     }
 }

@@ -44,6 +44,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 브라우저의 CORS 사전 요청은 인증 없이 통과시킨다.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // 컨트롤러 예외가 /error로 전달될 때 원래 HTTP 상태 코드가 403으로 덮이지 않게 한다.
+                        .requestMatchers(path("/error")).permitAll()
                         // 로그인/회원가입/공개 조회 API는 토큰 없이 접근 가능하다.
                         .requestMatchers(HttpMethod.POST, "/api/web-admin/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/apartment-managers/login").permitAll()
@@ -90,6 +92,7 @@ public class SecurityConfig {
                         .requestMatchers(path("/api/visitor-cars/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/parking-lots/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/parking-zones/**")).hasRole("APARTMENT_MANAGER")
+                        .requestMatchers(path("/api/apartment-managers/gate-policy")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/manager-inquiries/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/resident-inquiries/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/manager-notifications/**")).hasRole("APARTMENT_MANAGER")
