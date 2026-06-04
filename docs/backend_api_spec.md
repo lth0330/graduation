@@ -54,6 +54,9 @@ http://localhost:8080
 | 가입 승인 | PATCH | `/api/web-admin/signup-requests/{managerNo}/approve` |
 | 가입 거절 | PATCH | `/api/web-admin/signup-requests/{managerNo}/reject` |
 
+승인/거절은 `PENDING` 상태의 신청만 처리할 수 있습니다. 이미 승인 또는 거절된 신청을 다시 처리하면 `409 Conflict`와 안내 메시지를 반환합니다.
+거절 요청의 `rejectReason`이 비어 있으면 `400 Bad Request`를 반환합니다.
+
 ## 4. 입주민 승인
 
 | 기능 | Method | URL |
@@ -62,6 +65,9 @@ http://localhost:8080
 | 입주민 가입 신청 상세 | GET | `/api/resident-signup-requests/{residentNo}` |
 | 입주민 승인 | PATCH | `/api/resident-signup-requests/{residentNo}/approve` |
 | 입주민 거절 | PATCH | `/api/resident-signup-requests/{residentNo}/reject` |
+
+승인/거절은 `PENDING` 상태의 신청만 처리할 수 있습니다. 이미 승인 또는 거절된 신청을 다시 처리하면 `409 Conflict`와 안내 메시지를 반환합니다.
+거절 요청의 `rejectReason`이 비어 있으면 `400 Bad Request`를 반환합니다.
 
 ## 5. 입주민 관리
 

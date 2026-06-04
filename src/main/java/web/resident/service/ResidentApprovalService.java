@@ -42,6 +42,7 @@ public class ResidentApprovalService {
     public ResidentApprovalDto approve(Integer residentNo) {
         // Update: 입주민 가입 요청을 승인 상태로 변경한다.
         ResidentEntity resident = findEntity(residentNo);
+        validatePending(resident);
         resident.setApprovalStatus(ApprovalStatus.APPROVED);
         resident.setRejectReason(null);
         syncHouseholdResidentCarLimit(resident, findHouseholdResidentCarLimit(resident));
@@ -57,9 +58,11 @@ public class ResidentApprovalService {
         }
 
         ResidentEntity resident = findEntity(residentNo);
+        validatePending(resident);
+        String normalizedRejectReason = rejectReason.trim();
         resident.setApprovalStatus(ApprovalStatus.REJECTED);
-        resident.setRejectReason(rejectReason);
-        gmailMailService.sendRejectMail(resident.getEmail(), resident.getName(), "입주민 회원가입", rejectReason);
+        resident.setRejectReason(normalizedRejectReason);
+        gmailMailService.sendRejectMail(resident.getEmail(), resident.getName(), "입주민 회원가입", normalizedRejectReason);
         return toApprovalDto(resident);
     }
 
@@ -92,6 +95,12 @@ public class ResidentApprovalService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void validatePending(ResidentEntity resident) {
+        if (resident.getApprovalStatus() != ApprovalStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 처리된 주민 신청입니다.");
+        }
     }
 
     private Integer findHouseholdResidentCarLimit(ResidentEntity resident) {

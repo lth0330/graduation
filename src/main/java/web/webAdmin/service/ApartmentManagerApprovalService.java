@@ -39,6 +39,7 @@ public class ApartmentManagerApprovalService {
     public ApartmentManagerSignupListDto approve(Integer managerNo) {
         // Update: 가입 요청을 승인 상태로 변경한다.
         ApartmentManagerEntity manager = findEntity(managerNo);
+        validatePending(manager);
         manager.setApprovalStatus(ApprovalStatus.APPROVED);
         manager.setRejectReason(null);
         manager.setApprovedAt(LocalDateTime.now());
@@ -54,10 +55,12 @@ public class ApartmentManagerApprovalService {
         }
 
         ApartmentManagerEntity manager = findEntity(managerNo);
+        validatePending(manager);
+        String normalizedRejectReason = rejectReason.trim();
         manager.setApprovalStatus(ApprovalStatus.REJECTED);
-        manager.setRejectReason(rejectReason);
+        manager.setRejectReason(normalizedRejectReason);
         manager.setApprovedAt(null);
-        gmailMailService.sendRejectMail(manager.getEmail(), manager.getName(), "아파트 관리자 회원가입", rejectReason);
+        gmailMailService.sendRejectMail(manager.getEmail(), manager.getName(), "아파트 관리자 회원가입", normalizedRejectReason);
         return manager.toSignupListDTO();
     }
 
@@ -68,5 +71,11 @@ public class ApartmentManagerApprovalService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void validatePending(ApartmentManagerEntity manager) {
+        if (manager.getApprovalStatus() != ApprovalStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 처리된 아파트 관리자 신청입니다.");
+        }
     }
 }
