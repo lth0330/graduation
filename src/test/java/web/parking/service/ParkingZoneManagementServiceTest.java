@@ -11,6 +11,11 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import app.repository.AppNotificationRepository;
+import app.repository.AppSettingRepository;
+import app.repository.DeviceInfoRepository;
+import app.repository.WaitingListRepository;
+import app.service.FcmService;
 import web.parking.dto.ParkingZoneDto;
 import web.parking.dto.ParkingZoneLayoutRequestDto;
 import web.parking.dto.ParkingZoneSaveRequestDto;
@@ -37,10 +42,7 @@ class ParkingZoneManagementServiceTest {
         when(parkingZoneRepository.findByParkingLot_No(1)).thenReturn(List.of());
         when(parkingZoneRepository.save(any(ParkingZoneEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ParkingZoneManagementService service = new ParkingZoneManagementService(
-                parkingZoneRepository,
-                parkingLotRepository
-        );
+        ParkingZoneManagementService service = createService(parkingZoneRepository, parkingLotRepository);
 
         ParkingZoneDto result = service.create(request);
 
@@ -75,10 +77,7 @@ class ParkingZoneManagementServiceTest {
         when(parkingLotRepository.findById(1)).thenReturn(Optional.of(parkingLot));
         when(parkingZoneRepository.findByParkingLot_No(1)).thenReturn(List.of(existing));
 
-        ParkingZoneManagementService service = new ParkingZoneManagementService(
-                parkingZoneRepository,
-                parkingLotRepository
-        );
+        ParkingZoneManagementService service = createService(parkingZoneRepository, parkingLotRepository);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(ResponseStatusException.class)
@@ -120,14 +119,26 @@ class ParkingZoneManagementServiceTest {
         when(parkingZoneRepository.findById(10)).thenReturn(Optional.of(target));
         when(parkingZoneRepository.findByParkingLot_No(1)).thenReturn(List.of(target, other));
 
-        ParkingZoneManagementService service = new ParkingZoneManagementService(
-                parkingZoneRepository,
-                parkingLotRepository
-        );
+        ParkingZoneManagementService service = createService(parkingZoneRepository, parkingLotRepository);
 
         assertThatThrownBy(() -> service.updateLayout(10, request))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(error -> ((ResponseStatusException) error).getStatusCode())
                 .isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    private ParkingZoneManagementService createService(
+            ParkingZoneRepository parkingZoneRepository,
+            ParkingLotRepository parkingLotRepository
+    ) {
+        return new ParkingZoneManagementService(
+                parkingZoneRepository,
+                parkingLotRepository,
+                mock(WaitingListRepository.class),
+                mock(AppNotificationRepository.class),
+                mock(AppSettingRepository.class),
+                mock(DeviceInfoRepository.class),
+                mock(FcmService.class)
+        );
     }
 }
