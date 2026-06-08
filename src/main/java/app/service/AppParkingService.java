@@ -39,6 +39,9 @@ public class AppParkingService {
         // 👇 [핵심 추가] 관리자가 웹에서 지정한 행(row)과 열(column) 위치를 앱으로 전달합니다!
         item.put("layout_row", zone.getLayoutRow());
         item.put("layout_column", zone.getLayoutColumn());
+                // 👇 아래 두 줄을 추가하세요
+        item.put("layout_width", zone.getLayoutWidth());
+        item.put("layout_height", zone.getLayoutHeight());
         return item;
     }
 
