@@ -36,6 +36,9 @@ public class AppParkingService {
         item.put("status", zone.getStatus());
         item.put("isOccupied", isOccupied(zone.getStatus()));
         item.put("current_car_number", zone.getCurrentCarNumber());
+        // 👇 [핵심 추가] 관리자가 웹에서 지정한 행(row)과 열(column) 위치를 앱으로 전달합니다!
+        item.put("layout_row", zone.getLayoutRow());
+        item.put("layout_column", zone.getLayoutColumn());
         return item;
     }
 

@@ -153,9 +153,10 @@ public class AppAuthService {
         user.put("u_name", resident.getName());
         user.put("u_dong", resident.getDong());
         user.put("u_ho", resident.getHo());
-        // 👇👇 [여기에 추가!] 아파트 정보가 있으면 이름을 꺼내서 a_name으로 보냅니다.
         user.put("a_name", resident.getApartment() != null ? resident.getApartment().getName() : ""); 
-        // 👆👆
+        // 💡 [추가] 앱에서 차량 등록 팝업 띄울 때 사용할 진짜 제한 대수 정보 넘겨주기!
+        user.put("resident_car_limit", resident.getResidentCarLimit());
+        user.put("visitor_car_limit", resident.getVisitorCarLimit());
         Map<String, Object> response = success();
         response.put("user", user);
         return response;

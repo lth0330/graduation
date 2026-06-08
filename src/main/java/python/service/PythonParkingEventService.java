@@ -1,11 +1,10 @@
 package python.service;
 
-import app.entity.RegisteredCarEntity;
-import app.repository.RegisteredCarRepository;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,6 +15,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import app.entity.RegisteredCarEntity;
+import app.repository.RegisteredCarRepository;
 import python.dto.PythonParkingEntryRequestDto;
 import python.dto.PythonParkingExitRequestDto;
 import python.dto.PythonParkingPlateUpdateRequestDto;
@@ -27,15 +29,13 @@ import web.parking.repository.ParkingHistoryRepository;
 import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
-//앱 도구 추가
-import app.entity.AppNotificationEntity;
-import web.resident.entity.ResidentEntity;
-import app.repository.AppNotificationRepository;
-import app.repository.DeviceInfoRepository;
-import app.repository.WaitingListRepository;
-import app.service.FcmService;
-
 import web.notification.service.ManagerNotificationService;
+
+// 👇 [핵심 1] 앱의 주차 로직(3분 예약, 알림 설정 확인 등)을 그대로 가져다 쓰기 위한 도구들
+import app.service.AppResidentFeatureService;
+import app.dto.AppParkingUpdateRequestDto;
+import app.dto.AppParkingUpdateItemDto;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -60,11 +60,8 @@ public class PythonParkingEventService {
     private final RegisteredCarRepository registeredCarRepository;
     private final ManagerNotificationService managerNotificationService;
 
-    //앱 추가
-    private final AppNotificationRepository notificationRepository;
-    private final DeviceInfoRepository deviceInfoRepository;
-    private final WaitingListRepository waitingListRepository;
-    private final FcmService fcmService;
+    // 💡 [핵심 2] 복잡한 알림 도구들을 다 지우고, 대신 '앱 서비스'를 통째로 불러옵니다!
+    private final AppResidentFeatureService appResidentFeatureService;
 
     public List<Map<String, String>> findCarNumbers() {
         Set<String> carNumbers = new LinkedHashSet<>();
@@ -76,10 +73,8 @@ public class PythonParkingEventService {
         return response;
     }
 
-    // Python이 특정 주차칸의 현재 상태를 확인할 때 사용한다.
     public Map<String, Object> findZoneStatus(String zoneName) {
         ParkingZoneEntity zone = findZone(zoneName);
-
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("zone", zone.getAreaNumber());
         response.put("status_type", zone.getStatus());
@@ -112,7 +107,6 @@ public class PythonParkingEventService {
     }
 
     @Transactional
-    // 입차 이벤트를 받으면 주차칸을 occupied로 바꾸고 parking_history에 시작 기록을 만든다.
     public Map<String, Object> saveEntry(PythonParkingEntryRequestDto requestDto) {
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
@@ -147,30 +141,24 @@ public class PythonParkingEventService {
                 .imagePath(requestDto.getImagePath())
                 .build();
 
-        parkingHistoryRepository.save(history);
-        // 💡 [추가] 주차 완료 FCM 푸시 알림 발송
-    ResidentEntity owner = null;
-    if (residentVehicle != null) owner = residentVehicle.getResident();
-    else if (visitorVehicle != null) owner = visitorVehicle.getResident();
-
-    if (owner != null) {
-        String msg = "[" + zone.getAreaNumber() + "] 구역에 차량(" + plate + ") 주차가 완료되었습니다.";
-        ResidentEntity finalOwner = owner;
-        
-        notificationRepository.save(AppNotificationEntity.builder()
-                .resident(finalOwner).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
-
-        deviceInfoRepository.findByResident_No(finalOwner.getNo())
-                .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
-    }
-
         ParkingHistoryEntity savedHistory = parkingHistoryRepository.save(history);
+
+        // =========================================================
+        // 💡 [핵심 3] 복잡한 푸시 알림 코드를 싹 지우고, 앱 서비스에게 입차 사실만 넘깁니다!
+        // 그러면 앱 서비스가 알아서 방해금지 설정(ON/OFF) 확인하고 알림을 예쁘게 쏴줍니다.
+        // =========================================================
+        AppParkingUpdateRequestDto req = new AppParkingUpdateRequestDto();
+        AppParkingUpdateItemDto item = new AppParkingUpdateItemDto();
+        item.setSlot(zone.getAreaNumber());
+        item.setStatus(STATUS_OCCUPIED);
+        req.setUpdates(Collections.singletonList(item));
+        appResidentFeatureService.updateParking(req);
+
         createParkingNotificationIfNeeded(zone, savedHistory);
         return result("entry", zone, savedHistory);
     }
 
     @Transactional
-    // 출차 이벤트를 받으면 진행 중인 주차 기록을 종료하고 주차칸을 empty로 되돌린다.
     public Map<String, Object> saveExit(PythonParkingExitRequestDto requestDto) {
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
@@ -183,24 +171,22 @@ public class PythonParkingEventService {
         zone.setStatus(STATUS_EMPTY);
         zone.setCurrentCarNumber(null);
         zone.setStatusChangeReason("Python 객체인식 출차 이벤트");
-// 💡 [추가] 빈자리 발생 FCM 대기자 푸시 알림 발송
-        waitingListRepository.findAll().stream()
-            .filter(w -> !w.getNotified() && (w.getTargetSlotId().equals("ALL") || w.getTargetSlotId().equals(zone.getAreaNumber())))
-            .forEach(w -> {
-                w.setNotified(true); // 알림 발송 완료 처리
-                String msg = "대기하시던 [" + zone.getAreaNumber() + "] 구역에 빈자리가 생겼습니다! 먼저 주차하세요.";
-                
-                notificationRepository.save(AppNotificationEntity.builder()
-                        .resident(w.getResident()).type("system").title("🔔 빈자리 알림").message(msg).read(false).build());
 
-                deviceInfoRepository.findByResident_No(w.getResident().getNo())
-                        .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 빈자리 알림", msg));
-            });
+        // =========================================================
+        // 💡 [핵심 4] 옛날 방식의 전체 발송 코드를 지우고, 앱 서비스에게 넘깁니다!
+        // 이제 카메라가 차가 빠진 걸 인식하면, 서버가 1등 대기자를 찾아 3분 타이머를 완벽하게 돌립니다.
+        // =========================================================
+        AppParkingUpdateRequestDto req = new AppParkingUpdateRequestDto();
+        AppParkingUpdateItemDto item = new AppParkingUpdateItemDto();
+        item.setSlot(zone.getAreaNumber());
+        item.setStatus(STATUS_EMPTY);
+        req.setUpdates(Collections.singletonList(item));
+        appResidentFeatureService.updateParking(req);
+
         return result("exit", zone, history);
     }
 
     @Transactional
-    // 번호판이 나중에 인식된 경우 UNKNOWN으로 저장된 기록을 실제 번호판으로 갱신한다.
     public Map<String, Object> updatePlate(PythonParkingPlateUpdateRequestDto requestDto) {
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());

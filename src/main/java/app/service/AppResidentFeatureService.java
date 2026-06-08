@@ -34,6 +34,16 @@ import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
 import web.resident.repository.ResidentRepository;
+import java.util.Comparator;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import jakarta.annotation.PreDestroy; // 👈 맨 위 import 모여있는 곳에 추가
+import org.springframework.context.annotation.Lazy; // 👈 import 추가
+import org.springframework.beans.factory.annotation.Autowired; // 👈 import 추가
+
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +62,13 @@ public class AppResidentFeatureService {
     private final ParkingZoneRepository parkingZoneRepository;
     private final FcmService fcmService;
     private final ManagerNotificationService managerNotificationService;
+    // 👇 [새로 추가] 3분 뒤에 예약을 취소시킬 타이머 도구입니다.
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(5);
+
+// 👇 [추가] 자기 자신의 복제본(Proxy)을 불러와 트랜잭션을 유지하는 마법의 키워드!
+    @Autowired
+    @Lazy
+    private AppResidentFeatureService self;
 
     public Map<String, Object> findInquiries(Integer residentNo) {
         Map<String, Object> response = success();
@@ -172,6 +189,15 @@ public class AppResidentFeatureService {
                 .build());
         return success();
     }
+    // 👇👇 [새로 추가] 입주민이 알림 대기를 취소할 때 사용하는 기능! 👇👇
+    @Transactional
+    public Map<String, Object> cancelWaitlist(Integer residentNo) {
+        // 해당 입주민이 걸어둔 모든 대기열을 찾아내서 깔끔하게 파기합니다.
+        waitingListRepository.findAll().stream()
+                .filter(w -> w.getResident().getNo().equals(residentNo))
+                .forEach(waitingListRepository::delete);
+        return success();
+    }
 
     @Transactional
     public Map<String, Object> visitorEntry(AppVisitorEntryRequestDto requestDto) {
@@ -179,7 +205,6 @@ public class AppResidentFeatureService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Car number is required.");
         }
 
-        // 방문 차량 입차 시 parkedAt/expireAt을 기록하고 입주민 알림을 남긴다.
         RegisteredCarEntity registeredCar = registeredCarRepository
                 .findFirstByNumberAndParkedAtIsNull(requestDto.getCarNumber().trim())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Registered visitor car not found."));
@@ -187,12 +212,33 @@ public class AppResidentFeatureService {
         registeredCar.setParkedAt(LocalDateTime.now());
         registeredCar.setExpiresAt(LocalDateTime.now().plusDays(1));
 
+        // 💡 푸시 알림과 DB 저장에 똑같이 쓸 문구를 변수로 만듭니다. (회원님의 유니코드 그대로 유지)
+        String title = "\uBC29\uBB38 \uCC28\uB7C9 \uC785\uCC28 \uC54C\uB9BC";
+        String message = "[" + registeredCar.getNumber() + "] \uBC29\uBB38 \uCC28\uB7C9\uC774 \uC8FC\uCC28\uC7A5\uC5D0 \uB4E4\uC5B4\uC654\uC2B5\uB2C8\uB2E4.";
+
+        // 1. 기존 코드: 앱 내부 알림함(DB)에 저장
         notificationRepository.save(AppNotificationEntity.builder()
                 .resident(registeredCar.getResident())
                 .type("visitor")
-                .title("\uBC29\uBB38 \uCC28\uB7C9 \uC785\uCC28 \uC54C\uB9BC")
-                .message("[" + registeredCar.getNumber() + "] \uBC29\uBB38 \uCC28\uB7C9\uC774 \uC8FC\uCC28\uC7A5\uC5D0 \uB4E4\uC5B4\uC654\uC2B5\uB2C8\uB2E4.")
+                .title(title)
+                .message(message)
                 .build());
+
+        // =========================================================
+        // 2. 새로 추가된 코드: 스마트폰으로 푸시 알림(FCM) 발송
+        // =========================================================
+        Integer residentNo = registeredCar.getResident().getNo();
+        boolean isPushOn = settingRepository.findByDeviceId("device_" + residentNo)
+                .map(AppSettingEntity::getAlertPush)
+                .orElse(true);
+
+        if (isPushOn) {
+            deviceInfoRepository.findByResident_No(residentNo).forEach(device -> {
+                // 스마트폰 팝업창에는 자동차 이모티콘이 예쁘게 뜨도록 "🚗 "를 살짝 붙여줍니다.
+                fcmService.sendPush(device.getFcmToken(), "🚗 " + title, message);
+            });
+        }
+        // =========================================================
 
         return success();
     }
@@ -207,35 +253,81 @@ public class AppResidentFeatureService {
             if (update == null || isBlank(update.getSlot()) || isBlank(update.getStatus())) continue;
 
             parkingZoneRepository.findByAreaNumber(update.getSlot()).ifPresent(zone -> {
+
+                // =========================================================
+                // 💡 [핵심 방어 1] 카메라가 계속 'empty'를 보내도, 서버가 'reserved' 상태라면 철벽 방어!
+                // =========================================================
+                if (update.getStatus().equals("empty") && "reserved".equals(zone.getStatus())) {
+                    return; // 아무 일도 하지 않고 무시 (3분 타이머가 끝날 때까지 보호)
+                }
+
                 zone.setStatus(update.getStatus());
 
-                // 💡 1. 빈자리가 났을 때 대기자에게 알림 발송
+                // =========================================================
+                // 💡 [선착순 알림 로직] 빈자리가 났을 때
+                // =========================================================
                 if (update.getStatus().equals("empty")) {
-                    waitingListRepository.findAll().stream()
+                    // 모든 사람이 아니라, 대기열 중 '가장 먼저 신청한 1명'만 뽑아냅니다.
+                    Optional<WaitingListEntity> firstWaiter = waitingListRepository.findAll().stream()
                             .filter(w -> !w.getNotified() && (w.getTargetSlotId().equals("ALL") || w.getTargetSlotId().equals(update.getSlot())))
-                            .forEach(w -> {
-                                String msg = "대기하시던 [" + update.getSlot() + "] 구역에 빈자리가 생겼습니다! 먼저 주차하세요.";
-                                w.setNotified(true);
+                            .sorted(Comparator.comparing(WaitingListEntity::getNo)) // 번호가 작을수록 먼저 신청한 사람
+                            .findFirst();
 
-                                notificationRepository.save(AppNotificationEntity.builder()
-                                        .resident(w.getResident()).type("system").title("🔔 빈자리 알림").message(msg).read(false).build());
+                    if (firstWaiter.isPresent()) {
+                        WaitingListEntity w = firstWaiter.get();
 
-                                boolean isPushOn = settingRepository.findByDeviceId("device_" + w.getResident().getNo())
-                                        .map(AppSettingEntity::getAlertPush).orElse(true);
-                                if (isPushOn) {
-                                    deviceInfoRepository.findByResident_No(w.getResident().getNo())
-                                            .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 빈자리 알림", msg));
+                        // 1. 다른 사람이 못 쓰게 주차칸을 '예약중(reserved)'으로 묶어버림
+                        zone.setStatus("reserved");
+                        parkingZoneRepository.save(zone);
+
+                        // 2. 1등에게만 알림 발송 (대기권 사용 완료 처리)
+                        String msg = "대기하시던 [" + update.getSlot() + "] 구역에 빈자리가 생겼습니다! 3분 안에 주차해 주세요.";
+                        w.setNotified(true);
+
+                        notificationRepository.save(AppNotificationEntity.builder()
+                                .resident(w.getResident()).type("system").title("🔔 주차 예약 알림").message(msg).read(false).build());
+
+                        boolean isPushOn = settingRepository.findByDeviceId("device_" + w.getResident().getNo())
+                                .map(AppSettingEntity::getAlertPush).orElse(true);
+                        if (isPushOn) {
+                            deviceInfoRepository.findByResident_No(w.getResident().getNo())
+                                    .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🔔 3분 주차 예약", msg));
+                        }
+
+                        // 3. 3분 뒤에 확인하는 타이머 작동! (테스트할 땐 1분으로 줄여보세요)
+                        scheduler.schedule(() -> {
+                            // 3분 뒤 다시 DB를 확인해서 여전히 'reserved' 상태인지 확인 (차를 안 댔다면)
+                            parkingZoneRepository.findByAreaNumber(update.getSlot()).ifPresent(checkZone -> {
+                                if ("reserved".equals(checkZone.getStatus())) {
+                                    System.out.println("🚨 3분 경과! 1등 예약이 취소되고 다음 사람에게 넘어갑니다.");
+
+                                    // 철벽 방어를 뚫기 위해 DB를 수동으로 빈자리로 돌려놓음
+                                    checkZone.setStatus("empty");
+                                    parkingZoneRepository.saveAndFlush(checkZone);
+
+                                    // 다음 대기자(2등)에게 기회를 주기 위해, 서버가 스스로 빈자리 신호를 다시 쏩니다! (재귀 호출)
+                                    AppParkingUpdateRequestDto retryDto = new AppParkingUpdateRequestDto();
+                                    AppParkingUpdateItemDto retryItem = new AppParkingUpdateItemDto();
+                                    retryItem.setSlot(update.getSlot());
+                                    retryItem.setStatus("empty");
+                                    retryDto.setUpdates(Collections.singletonList(retryItem));
+
+                                     // ✅ 변경 후: self를 붙여서 부르면 트랜잭션이 완벽하게 유지됩니다!
+                                     self.updateParking(retryDto);
                                 }
                             });
+                        }, 3, TimeUnit.MINUTES); // 👈 (여기를 1로 바꾸면 1분 타이머가 됩니다)
+                    }
                 }
-                // 💡 2. 주차 완료 시 차주에게 알림 발송 (차량 번호가 전달된 경우)
+                // =========================================================
+                // 💡 [주차 완료 시] 차를 대면 'occupied'로 덮어씌워지며 예약이 자동으로 종료됨
+                // =========================================================
                 else if ((update.getStatus().equals("occupied") || update.getStatus().equals("사용중")) && zone.getCurrentCarNumber() != null) {
                     residentVehicleRepository.findByNumber(zone.getCurrentCarNumber()).ifPresent(car -> {
                         String msg = "[" + update.getSlot() + "] 구역에 차량(" + car.getNumber() + ") 주차가 완료되었습니다.";
                         notificationRepository.save(AppNotificationEntity.builder()
                                 .resident(car.getResident()).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
 
-// 👇 [이렇게 변경해 주세요] 👇
                         boolean isPushOn2 = settingRepository.findByDeviceId("device_" + car.getResident().getNo())
                                 .map(AppSettingEntity::getAlertPush).orElse(true);
                         if (isPushOn2) {
@@ -331,4 +423,13 @@ public class AppResidentFeatureService {
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
+    // 👇 파일 맨 밑의 마지막 괄호(}) 바로 위에 이 함수를 통째로 추가하세요!
+    @PreDestroy
+    public void destroyTimer() {
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdown();
+            System.out.println("주차 3분 예약 타이머가 안전하게 종료되었습니다.");
+        }
+    }
 }
+
