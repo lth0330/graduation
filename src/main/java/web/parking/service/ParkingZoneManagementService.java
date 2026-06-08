@@ -298,6 +298,7 @@ public class ParkingZoneManagementService {
                 .layoutColumn(parkingZone.getLayoutColumn())
                 .layoutWidth(normalizeLayoutSize(parkingZone.getLayoutWidth(), DEFAULT_LAYOUT_WIDTH))
                 .layoutHeight(normalizeLayoutSize(parkingZone.getLayoutHeight(), DEFAULT_LAYOUT_HEIGHT))
+                .currentCarNumber(parkingZone.getCurrentCarNumber())
                 .statusChangeReason(parkingZone.getStatusChangeReason())
                 .build();
     }

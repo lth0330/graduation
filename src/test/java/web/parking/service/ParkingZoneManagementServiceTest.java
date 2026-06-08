@@ -51,6 +51,34 @@ class ParkingZoneManagementServiceTest {
     }
 
     @Test
+    void findParkingZonesIncludesCurrentCarNumber() {
+        ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
+        ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
+        ParkingLotEntity parkingLot = ParkingLotEntity.builder().no(1).build();
+        ParkingZoneEntity occupiedZone = ParkingZoneEntity.builder()
+                .no(10)
+                .parkingLot(parkingLot)
+                .areaNumber("A1")
+                .location("B1")
+                .status("occupied")
+                .layoutRow(1)
+                .layoutColumn(1)
+                .layoutWidth(1)
+                .layoutHeight(2)
+                .currentCarNumber("12가3456")
+                .build();
+
+        when(parkingZoneRepository.findByParkingLot_No(1)).thenReturn(List.of(occupiedZone));
+
+        ParkingZoneManagementService service = createService(parkingZoneRepository, parkingLotRepository);
+
+        List<ParkingZoneDto> result = service.findParkingZones(1);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getCurrentCarNumber()).isEqualTo("12가3456");
+    }
+
+    @Test
     void createRejectsOverlappingLayoutArea() {
         ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
         ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
