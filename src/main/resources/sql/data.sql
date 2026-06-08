@@ -204,15 +204,15 @@ INSERT INTO parking_zone (
     layout_width, layout_height, status_change_reason, current_car_number
 )
 VALUES
-    (1, 1, 'a-b1-001', 'B1 1번 주차칸', 'empty', 'normal', 1, 1, 2, 1, '초기 등록', NULL),
-    (2, 1, 'a-b1-002', 'B1 2번 주차칸', 'empty', 'normal', 1, 3, 2, 1, '초기 등록', NULL),
-    (3, 1, 'a-b1-003', 'B1 3번 주차칸', 'empty', 'normal', 1, 5, 2, 1, '초기 등록', NULL),
-    (4, 1, 'a-b1-004', 'B1 4번 주차칸', 'empty', 'normal', 1, 7, 2, 1, '초기 등록', NULL),
-    (5, 1, 'a-b1-005', 'B1 5번 주차칸', 'empty', 'normal', 2, 1, 2, 1, '초기 등록', NULL),
-    (6, 1, 'a-b1-006', 'B1 6번 주차칸', 'empty', 'normal', 2, 3, 2, 1, '초기 등록', NULL),
-    (7, 1, 'a-b1-007', 'B1 7번 주차칸', 'empty', 'normal', 2, 5, 2, 1, '초기 등록', NULL),
-    (8, 1, 'a-b1-008', 'B1 8번 주차칸', 'empty', 'normal', 2, 7, 2, 1, '초기 등록', NULL),
-    (9, 1, 'a-b1-009', 'B1 9번 주차칸', 'empty', 'normal', 3, 1, 2, 1, '초기 등록', NULL)
+    (1, 1, 'a-b1-001', 'B1 1번 주차칸', 'empty', 'normal', 1, 1, 1, 2, '초기 등록', NULL),
+    (2, 1, 'a-b1-002', 'B1 2번 주차칸', 'empty', 'normal', 1, 2, 1, 2, '초기 등록', NULL),
+    (3, 1, 'a-b1-003', 'B1 3번 주차칸', 'empty', 'normal', 1, 4, 1, 2, '초기 등록', NULL),
+    (4, 1, 'a-b1-004', 'B1 4번 주차칸', 'empty', 'normal', 1, 5, 1, 2, '초기 등록', NULL),
+    (5, 1, 'a-b1-005', 'B1 5번 주차칸', 'empty', 'normal', 1, 7, 1, 2, '초기 등록', NULL),
+    (6, 1, 'a-b1-006', 'B1 6번 주차칸', 'empty', 'normal', 1, 8, 1, 2, '초기 등록', NULL),
+    (7, 1, 'a-b1-007', 'B1 7번 주차칸', 'empty', 'normal', 3, 1, 2, 1, '초기 등록', NULL),
+    (8, 1, 'a-b1-008', 'B1 8번 주차칸', 'empty', 'normal', 3, 4, 2, 1, '초기 등록', NULL),
+    (9, 1, 'a-b1-009', 'B1 9번 주차칸', 'empty', 'normal', 3, 7, 2, 1, '초기 등록', NULL)
 ON DUPLICATE KEY UPDATE
     pl_no = VALUES(pl_no),
     area_number = VALUES(area_number),
