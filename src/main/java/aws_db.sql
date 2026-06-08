@@ -121,6 +121,8 @@ CREATE TABLE parking_zone (
     zone_type VARCHAR(30) NOT NULL DEFAULT 'normal',
     layout_row INT,
     layout_column INT,
+    layout_width INT DEFAULT 2,
+    layout_height INT DEFAULT 1,
     status_change_reason VARCHAR(255),
     current_car_number VARCHAR(255),
     PRIMARY KEY (pz_no),
