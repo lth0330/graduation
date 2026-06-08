@@ -28,8 +28,6 @@ public interface ResidentVehicleRepository extends JpaRepository<ResidentVehicle
 // 같은 아파트, 같은 동, 같은 호수에 등록된 차량의 총합을 세는 도구
     long countByResident_Apartment_NoAndResident_DongAndResident_Ho(Integer apartmentNo, String dong, String ho);
 
-    long countByResident_Apartment_NoAndResident_DongAndResident_Ho(Integer apartmentNo, String dong, String ho);
-
     boolean existsByNumberAndNoNot(String number, Integer vehicleNo);
 
     boolean existsByNumber(String number);
