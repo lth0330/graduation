@@ -25,6 +25,14 @@ public class ManagerNotificationController {
         return ResponseEntity.ok(managerNotificationService.findMyNotifications(principal));
     }
 
+    @GetMapping("/api/manager-notifications/{notificationNo}")
+    public ResponseEntity<ManagerNotificationDto> findMyNotification(
+            @AuthenticationPrincipal Map<String, Object> principal,
+            @PathVariable Integer notificationNo
+    ) {
+        return ResponseEntity.ok(managerNotificationService.findMyNotification(principal, notificationNo));
+    }
+
     @PatchMapping("/api/manager-notifications/{notificationNo}/read")
     public ResponseEntity<ManagerNotificationDto> markAsRead(
             @AuthenticationPrincipal Map<String, Object> principal,

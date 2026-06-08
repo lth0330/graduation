@@ -210,7 +210,7 @@ public class PythonGateService {
         boolean ocrError = "ocr_error".equalsIgnoreCase(normalizedType);
         String title = ocrError ? "번호판 인식 실패" : "차단기 이상 알림";
         String message = buildGateAlertMessage(ocrError, zoneName, eventTime, plate, candidates, imagePath);
-        String referenceType = ocrError ? "parking_ocr" : "gate_alert";
+        String referenceType = ocrError ? "parking_history" : "gate_alert";
 
         ManagerNotificationEntity notification = managerNotificationService.createApartmentNotification(
                 apartment,
@@ -406,11 +406,15 @@ public class PythonGateService {
     ) {
         StringBuilder message = new StringBuilder();
         if (ocrError) {
-            message.append("OCR 인식 불가 차량이 입차했습니다.");
+            if (zoneName != null) {
+                message.append(zoneName).append(" 구역에서 번호판을 인식하지 못했습니다.");
+            } else {
+                message.append("주차 구역에서 번호판을 인식하지 못했습니다.");
+            }
         } else {
             message.append("Python 차단기에서 이상 알림을 전송했습니다.");
         }
-        if (zoneName != null) {
+        if (!ocrError && zoneName != null) {
             message.append(" 구역: ").append(zoneName).append(".");
         }
         if (eventTime != null) {

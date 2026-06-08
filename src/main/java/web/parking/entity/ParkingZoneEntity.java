@@ -52,6 +52,12 @@ public class ParkingZoneEntity {
     @Column(name = "layout_column")
     private Integer layoutColumn;
 
+    @Column(name = "layout_width")
+    private Integer layoutWidth;
+
+    @Column(name = "layout_height")
+    private Integer layoutHeight;
+
     @Column(name = "status_change_reason", length = 255)
     private String statusChangeReason;
 
@@ -65,6 +71,12 @@ public class ParkingZoneEntity {
         }
         if (zoneType == null || zoneType.isBlank()) {
             zoneType = "normal";
+        }
+        if (layoutWidth == null || layoutWidth < 1) {
+            layoutWidth = 2;
+        }
+        if (layoutHeight == null || layoutHeight < 1) {
+            layoutHeight = 1;
         }
     }
 }

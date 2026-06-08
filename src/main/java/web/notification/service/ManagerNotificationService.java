@@ -13,6 +13,11 @@ import web.aptManager.repository.ApartmentManagerRepository;
 import web.notification.dto.ManagerNotificationDto;
 import web.notification.entity.ManagerNotificationEntity;
 import web.notification.repository.ManagerNotificationRepository;
+import web.parking.dto.ParkingHistoryDto;
+import web.parking.entity.ParkingHistoryEntity;
+import web.parking.entity.ParkingLotEntity;
+import web.parking.entity.ParkingZoneEntity;
+import web.parking.repository.ParkingHistoryRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +26,7 @@ public class ManagerNotificationService {
 
     private final ManagerNotificationRepository managerNotificationRepository;
     private final ApartmentManagerRepository apartmentManagerRepository;
+    private final ParkingHistoryRepository parkingHistoryRepository;
 
     @Transactional
     public ManagerNotificationEntity createApartmentNotification(
@@ -56,16 +62,22 @@ public class ManagerNotificationService {
                 .toList();
     }
 
+    public ManagerNotificationDto findMyNotification(Map<String, Object> principal, Integer notificationNo) {
+        ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
+        ManagerNotificationEntity notification = managerNotificationRepository.findById(notificationNo)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 관리자 알림입니다."));
+
+        validateSameApartment(manager, notification);
+        return toDto(notification, findReferencedParkingHistory(notification));
+    }
+
     @Transactional
     public ManagerNotificationDto markAsRead(Map<String, Object> principal, Integer notificationNo) {
         ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
         ManagerNotificationEntity notification = managerNotificationRepository.findById(notificationNo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 관리자 알림입니다."));
 
-        Integer notificationApartmentNo = notification.getApartment() != null ? notification.getApartment().getNo() : null;
-        if (!getApartmentNo(manager).equals(notificationApartmentNo)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "다른 아파트의 알림은 처리할 수 없습니다.");
-        }
+        validateSameApartment(manager, notification);
 
         notification.setRead(true);
         return toDto(notification);
@@ -85,6 +97,10 @@ public class ManagerNotificationService {
     }
 
     private ManagerNotificationDto toDto(ManagerNotificationEntity notification) {
+        return toDto(notification, null);
+    }
+
+    private ManagerNotificationDto toDto(ManagerNotificationEntity notification, ParkingHistoryDto parkingHistory) {
         ApartmentManagerEntity manager = notification.getManager();
         ApartmentEntity apartment = notification.getApartment();
 
@@ -97,9 +113,36 @@ public class ManagerNotificationService {
                 .message(notification.getMessage())
                 .referenceType(notification.getReferenceType())
                 .referenceId(notification.getReferenceId())
+                .parkingHistory(parkingHistory)
                 .read(notification.getRead())
                 .createdAt(notification.getCreatedAt())
                 .build();
+    }
+
+    private ParkingHistoryDto findReferencedParkingHistory(ManagerNotificationEntity notification) {
+        if (!"parking_history".equals(notification.getReferenceType()) || notification.getReferenceId() == null) {
+            return null;
+        }
+        return parkingHistoryRepository.findById(notification.getReferenceId())
+                .filter(history -> sameApartment(notification, history))
+                .map(ParkingHistoryDto::from)
+                .orElse(null);
+    }
+
+    private boolean sameApartment(ManagerNotificationEntity notification, ParkingHistoryEntity history) {
+        Integer notificationApartmentNo = notification.getApartment() != null ? notification.getApartment().getNo() : null;
+        ParkingZoneEntity zone = history.getParkingZone();
+        ParkingLotEntity parkingLot = zone != null ? zone.getParkingLot() : null;
+        ApartmentEntity historyApartment = parkingLot != null ? parkingLot.getApartment() : null;
+        Integer historyApartmentNo = historyApartment != null ? historyApartment.getNo() : null;
+        return notificationApartmentNo != null && notificationApartmentNo.equals(historyApartmentNo);
+    }
+
+    private void validateSameApartment(ApartmentManagerEntity manager, ManagerNotificationEntity notification) {
+        Integer notificationApartmentNo = notification.getApartment() != null ? notification.getApartment().getNo() : null;
+        if (!getApartmentNo(manager).equals(notificationApartmentNo)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "다른 아파트의 알림은 처리할 수 없습니다.");
+        }
     }
 
     private ApartmentManagerEntity findManager(Integer managerNo) {

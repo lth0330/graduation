@@ -1,6 +1,6 @@
 # 백엔드 API 명세
 
-기준일: 2026-06-03
+기준일: 2026-06-08
 
 Base URL:
 
@@ -168,9 +168,18 @@ registered_cars.u_no -> user.u_no -> user.a_no
 
 ```json
 {
-  "zoneType": "normal"
+  "zoneType": "normal",
+  "layoutRow": 1,
+  "layoutColumn": 1,
+  "layoutWidth": 2,
+  "layoutHeight": 1
 }
 ```
+
+`layoutRow`, `layoutColumn`은 주차 상태 화면에서 표시할 시작 위치입니다.
+`layoutWidth`, `layoutHeight`는 CSS Grid 기준으로 해당 주차칸이 차지하는 가로/세로 칸 수입니다.
+값을 보내지 않으면 백엔드는 일반 주차칸 기준 기본값으로 `layoutWidth=2`, `layoutHeight=1`을 사용합니다.
+새 주차구역을 만들거나 배치를 수정할 때 기존 주차구역의 배치 영역과 겹치면 `409 Conflict`를 반환합니다.
 
 구역 종류:
 
@@ -184,12 +193,80 @@ double_lane  통로 주차칸
 | 기능 | Method | URL |
 |---|---:|---|
 | 관리자 알림 목록 | GET | `/api/manager-notifications` |
+| 관리자 알림 상세 | GET | `/api/manager-notifications/{notificationNo}` |
 | 관리자 알림 읽음 처리 | PATCH | `/api/manager-notifications/{notificationNo}/read` |
 
 주요 생성 조건:
 
 - 앱에서 입주민 문의 작성
-- Python 주차 이벤트에서 이상 주차 감지
+- Python 주차 이벤트에서 OCR 실패 또는 이상 주차 감지
+
+OCR 실패/이상 주차 알림은 주차 이력을 기준으로 연결합니다.
+
+```text
+notificationType = ocr_error 또는 abnormal_parking
+referenceType = parking_history
+referenceId = parking_history.history_id
+```
+
+알림 상세 응답에서 `referenceType`이 `parking_history`이고 주차 이력이 존재하면 `parkingHistory`가 함께 내려갑니다.
+`imagePath`는 현재 저장된 스냅샷 경로 값이며, 웹에서 직접 표시 가능한 URL 변환은 별도 이미지 제공 방식이 정해진 뒤 처리합니다.
+
+```json
+{
+  "notificationNo": 10,
+  "notificationType": "ocr_error",
+  "title": "번호판 인식 실패",
+  "message": "A1 구역에서 번호판을 인식하지 못했습니다.",
+  "referenceType": "parking_history",
+  "referenceId": 3,
+  "parkingHistory": {
+    "historyId": 3,
+    "parkingZoneNo": 5,
+    "parkingLotNo": 1,
+    "apartmentNo": 1,
+    "zone": "A1",
+    "plate": "UNKNOWN",
+    "entryTime": "2026-06-08T10:30:00",
+    "exitTime": null,
+    "status": "PARKED",
+    "parkType": "normal",
+    "linkedZone": null,
+    "imagePath": "C:\\snapshots\\A1.jpg"
+  },
+  "read": false,
+  "createdAt": "2026-06-08T10:31:00"
+}
+```
+
+## 10-1. 주차 이력 조회
+
+아파트 관리자 화면에서 관리자 알림의 `referenceId`로 연결된 주차 이력을 조회하는 API입니다.
+
+| 기능 | Method | URL |
+|---|---:|---|
+| 주차 이력 상세 | GET | `/api/parking-histories/{historyId}` |
+
+아파트 관리자는 본인 아파트의 주차 이력만 조회할 수 있습니다. 다른 아파트 주차 이력을 조회하면 `403 Forbidden`을 반환합니다.
+
+응답 예시:
+
+```json
+{
+  "historyId": 3,
+  "parkingZoneNo": 5,
+  "parkingLotNo": 1,
+  "apartmentNo": 1,
+  "zone": "A1",
+  "plate": "UNKNOWN",
+  "entryTime": "2026-06-08T10:30:00",
+  "exitTime": null,
+  "status": "PARKED",
+  "parkType": "normal",
+  "linkedZone": null,
+  "imagePath": "C:\\snapshots\\A1.jpg"
+}
+```
 
 ## 11. 문의
 
@@ -324,6 +401,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 - `/api/gate/check` 요청의 아파트 번호는 `apartmentNo`, `apartment_no`, `a_no` 중 하나로 전달할 수 있습니다.
 - 입차 이벤트의 `image_path`는 `parking_history.image_path`에 저장합니다.
 - OCR 실패 등 Python 알림 요청은 `/api/gate/alert`를 통해 관리자 알림(`manager_notification`)으로 저장합니다. `apartment_no`나 `history_id`가 없어도 `zone`으로 주차구역을 찾아 해당 아파트 알림으로 저장합니다.
+- OCR 실패 알림은 `reference_type=parking_history`, `reference_id=history_id` 기준으로 저장합니다. `history_id`가 없는 경우에도 알림은 저장할 수 있지만, 알림 상세의 `parkingHistory`는 null입니다.
 
 차단기 차량 확인 응답 예시:
 
@@ -353,6 +431,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
   "type": "ocr_error",
   "candidates": "OCR 인식 불가 | 이미지: snapshots/a-b1-002.jpg",
   "time": "2026-06-04 12:00:00",
+  "history_id": 3,
   "image_path": "snapshots/a-b1-002.jpg"
 }
 ```

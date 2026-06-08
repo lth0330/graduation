@@ -3,6 +3,7 @@ package web.notification.dto;
 import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
+import web.parking.dto.ParkingHistoryDto;
 
 @Getter
 @Builder
@@ -16,6 +17,7 @@ public class ManagerNotificationDto {
     private String message;
     private String referenceType;
     private Integer referenceId;
+    private ParkingHistoryDto parkingHistory;
     private Boolean read;
     private LocalDateTime createdAt;
 }

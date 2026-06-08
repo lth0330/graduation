@@ -21,6 +21,9 @@ import web.parking.repository.ParkingZoneRepository;
 // 웹 주차구역 관리 서비스: parking_zone 테이블의 슬롯 CRUD와 상태/배치 수정을 처리한다.
 public class ParkingZoneManagementService {
 
+    private static final int DEFAULT_LAYOUT_WIDTH = 2;
+    private static final int DEFAULT_LAYOUT_HEIGHT = 1;
+
     private final ParkingZoneRepository parkingZoneRepository;
     private final ParkingLotRepository parkingLotRepository;
 
@@ -36,7 +39,16 @@ public class ParkingZoneManagementService {
     public ParkingZoneDto create(ParkingZoneSaveRequestDto requestDto) {
         // Create: 주차장에 연결된 주차구역을 등록한다.
         validateSaveRequest(requestDto);
-        validateDuplicatePlacement(requestDto.getParkingLotNo(), requestDto.getLayoutRow(), requestDto.getLayoutColumn(), null);
+        Integer layoutWidth = normalizeLayoutSize(requestDto.getLayoutWidth(), DEFAULT_LAYOUT_WIDTH);
+        Integer layoutHeight = normalizeLayoutSize(requestDto.getLayoutHeight(), DEFAULT_LAYOUT_HEIGHT);
+        validateOverlappingPlacement(
+                requestDto.getParkingLotNo(),
+                requestDto.getLayoutRow(),
+                requestDto.getLayoutColumn(),
+                layoutWidth,
+                layoutHeight,
+                null
+        );
 
         ParkingLotEntity parkingLot = findParkingLot(requestDto.getParkingLotNo());
         ParkingZoneEntity parkingZone = ParkingZoneEntity.builder()
@@ -47,6 +59,8 @@ public class ParkingZoneManagementService {
                 .zoneType(normalizeZoneType(requestDto.getZoneType()))
                 .layoutRow(requestDto.getLayoutRow())
                 .layoutColumn(requestDto.getLayoutColumn())
+                .layoutWidth(layoutWidth)
+                .layoutHeight(layoutHeight)
                 .statusChangeReason(requestDto.getStatusChangeReason())
                 .build();
 
@@ -80,15 +94,31 @@ public class ParkingZoneManagementService {
         }
 
         ParkingZoneEntity parkingZone = findEntity(parkingZoneNo);
-        validateDuplicatePlacement(
+        Integer layoutWidth = normalizeLayoutSize(
+                requestDto.getLayoutWidth(),
+                normalizeLayoutSize(parkingZone.getLayoutWidth(), DEFAULT_LAYOUT_WIDTH)
+        );
+        Integer layoutHeight = normalizeLayoutSize(
+                requestDto.getLayoutHeight(),
+                normalizeLayoutSize(parkingZone.getLayoutHeight(), DEFAULT_LAYOUT_HEIGHT)
+        );
+        if (layoutWidth < 1 || layoutHeight < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "배치 가로와 세로는 1 이상이어야 합니다.");
+        }
+
+        validateOverlappingPlacement(
                 parkingZone.getParkingLot().getNo(),
                 requestDto.getLayoutRow(),
                 requestDto.getLayoutColumn(),
+                layoutWidth,
+                layoutHeight,
                 parkingZoneNo
         );
 
         parkingZone.setLayoutRow(requestDto.getLayoutRow());
         parkingZone.setLayoutColumn(requestDto.getLayoutColumn());
+        parkingZone.setLayoutWidth(layoutWidth);
+        parkingZone.setLayoutHeight(layoutHeight);
         return toDto(parkingZone);
     }
 
@@ -127,21 +157,62 @@ public class ParkingZoneManagementService {
         if (requestDto.getLayoutRow() < 1 || requestDto.getLayoutColumn() < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "배치 행과 열은 1 이상이어야 합니다.");
         }
+        Integer layoutWidth = normalizeLayoutSize(requestDto.getLayoutWidth(), DEFAULT_LAYOUT_WIDTH);
+        Integer layoutHeight = normalizeLayoutSize(requestDto.getLayoutHeight(), DEFAULT_LAYOUT_HEIGHT);
+        if (layoutWidth < 1 || layoutHeight < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "배치 가로와 세로는 1 이상이어야 합니다.");
+        }
     }
 
-    private void validateDuplicatePlacement(Integer parkingLotNo, Integer layoutRow, Integer layoutColumn, Integer currentZoneNo) {
-        boolean exists = currentZoneNo == null
-                ? parkingZoneRepository.existsByParkingLot_NoAndLayoutRowAndLayoutColumn(parkingLotNo, layoutRow, layoutColumn)
-                : parkingZoneRepository.existsByParkingLot_NoAndLayoutRowAndLayoutColumnAndNoNot(
-                        parkingLotNo,
+    private void validateOverlappingPlacement(
+            Integer parkingLotNo,
+            Integer layoutRow,
+            Integer layoutColumn,
+            Integer layoutWidth,
+            Integer layoutHeight,
+            Integer currentZoneNo
+    ) {
+        boolean overlaps = parkingZoneRepository.findByParkingLot_No(parkingLotNo)
+                .stream()
+                .filter(zone -> currentZoneNo == null || !currentZoneNo.equals(zone.getNo()))
+                .anyMatch(zone -> overlaps(
                         layoutRow,
                         layoutColumn,
-                        currentZoneNo
-                );
+                        layoutWidth,
+                        layoutHeight,
+                        zone
+                ));
 
-        if (exists) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 배치 위치입니다.");
+        if (overlaps) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 배치 영역입니다.");
         }
+    }
+
+    private boolean overlaps(
+            Integer layoutRow,
+            Integer layoutColumn,
+            Integer layoutWidth,
+            Integer layoutHeight,
+            ParkingZoneEntity existing
+    ) {
+        if (existing.getLayoutRow() == null || existing.getLayoutColumn() == null) {
+            return false;
+        }
+
+        int rowStart = layoutRow;
+        int rowEnd = layoutRow + layoutHeight - 1;
+        int columnStart = layoutColumn;
+        int columnEnd = layoutColumn + layoutWidth - 1;
+        int existingRowStart = existing.getLayoutRow();
+        int existingRowEnd = existing.getLayoutRow()
+                + normalizeLayoutSize(existing.getLayoutHeight(), DEFAULT_LAYOUT_HEIGHT) - 1;
+        int existingColumnStart = existing.getLayoutColumn();
+        int existingColumnEnd = existing.getLayoutColumn()
+                + normalizeLayoutSize(existing.getLayoutWidth(), DEFAULT_LAYOUT_WIDTH) - 1;
+
+        boolean rowOverlaps = rowStart <= existingRowEnd && rowEnd >= existingRowStart;
+        boolean columnOverlaps = columnStart <= existingColumnEnd && columnEnd >= existingColumnStart;
+        return rowOverlaps && columnOverlaps;
     }
 
     private String normalizeStatus(String status) {
@@ -174,8 +245,17 @@ public class ParkingZoneManagementService {
                 .zoneType(parkingZone.getZoneType())
                 .layoutRow(parkingZone.getLayoutRow())
                 .layoutColumn(parkingZone.getLayoutColumn())
+                .layoutWidth(normalizeLayoutSize(parkingZone.getLayoutWidth(), DEFAULT_LAYOUT_WIDTH))
+                .layoutHeight(normalizeLayoutSize(parkingZone.getLayoutHeight(), DEFAULT_LAYOUT_HEIGHT))
                 .statusChangeReason(parkingZone.getStatusChangeReason())
                 .build();
+    }
+
+    private Integer normalizeLayoutSize(Integer value, Integer defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
     }
 
     private boolean isBlank(String value) {
