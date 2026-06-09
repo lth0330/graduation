@@ -65,7 +65,7 @@ public class AppResidentFeatureService {
     // 👇 [새로 추가] 3분 뒤에 예약을 취소시킬 타이머 도구입니다.
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(5);
 
-// 👇 [추가] 자기 자신의 복제본(Proxy)을 불러와 트랜잭션을 유지하는 마법의 키워드!
+    // 👇 [추가] 자기 자신의 복제본(Proxy)을 불러와 트랜잭션을 유지하는 마법의 키워드!
     @Autowired
     @Lazy
     private AppResidentFeatureService self;
@@ -312,8 +312,8 @@ public class AppResidentFeatureService {
                                     retryItem.setStatus("empty");
                                     retryDto.setUpdates(Collections.singletonList(retryItem));
 
-                                     // ✅ 변경 후: self를 붙여서 부르면 트랜잭션이 완벽하게 유지됩니다!
-                                     self.updateParking(retryDto);
+                                    // ✅ 변경 후: self를 붙여서 부르면 트랜잭션이 완벽하게 유지됩니다!
+                                    self.updateParking(retryDto);
                                 }
                             });
                         }, 3, TimeUnit.MINUTES); // 👈 (여기를 1로 바꾸면 1분 타이머가 됩니다)
@@ -422,6 +422,33 @@ public class AppResidentFeatureService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+    // =========================================================
+    // 👇 외부에서 특정 입주민에게 알림 보관함 저장 + 푸시 알림을 쏘는 만능 함수
+    // =========================================================
+    @Transactional
+    public void sendPushToResident(Integer residentNo, String title, String body) {
+        // 1. [알림 보관함 저장] 푸시 설정이 꺼져 있어도 앱 내 알림 내역에는 무조건 저장합니다.
+        residentRepository.findById(residentNo).ifPresent(resident -> {
+            notificationRepository.save(AppNotificationEntity.builder()
+                    .resident(resident)
+                    .type("parking") // 알림 종류 (parking, system, visitor 등)
+                    .title(title)
+                    .message(body)
+                    .read(false)     // 안 읽음 상태로 저장
+                    .build());
+        });
+
+        // 2. [스마트폰 푸시 발송] 사용자가 설정에서 푸시 알림을 켜둔 경우에만 팝업을 날립니다.
+        boolean isPushOn = settingRepository.findByDeviceId("device_" + residentNo)
+                .map(app.entity.AppSettingEntity::getAlertPush)
+                .orElse(true);
+
+        if (isPushOn) {
+            deviceInfoRepository.findByResident_No(residentNo).forEach(device -> {
+                fcmService.sendPush(device.getFcmToken(), title, body);
+            });
+        }
     }
     // 👇 파일 맨 밑의 마지막 괄호(}) 바로 위에 이 함수를 통째로 추가하세요!
     @PreDestroy

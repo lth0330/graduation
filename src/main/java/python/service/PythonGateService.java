@@ -28,6 +28,8 @@ import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.notification.entity.ManagerNotificationEntity;
 import web.notification.service.ManagerNotificationService;
+import app.service.AppResidentFeatureService; // 👈 이 줄을 import 모음에 추가하세요!
+
 
 @Service
 @RequiredArgsConstructor
@@ -47,7 +49,7 @@ public class PythonGateService {
     private final ParkingZoneRepository parkingZoneRepository;
     private final ApartmentRepository apartmentRepository;
     private final ManagerNotificationService managerNotificationService;
-
+    private final AppResidentFeatureService appResidentFeatureService; // 👈 추가!
     // 주민 차량과 방문 차량 테이블을 모두 확인하고 관리자 차단 정책까지 반영해 차단기 개방 여부를 만든다.
     public Map<String, Object> checkPlate(String plate, Integer apartmentNo) {
         String normalizedPlate = normalizePlate(plate);
@@ -179,6 +181,20 @@ public class PythonGateService {
         if (zone != null) {
             zone.setCurrentCarNumber(plate);
             zone.setStatusChangeReason("차단기 인식 번호판 자동 매칭");
+
+            // =========================================================
+            // 👇 [새로 추가된 코드] 매칭된 구역이 '통로'인 경우 100% 확정 알림!
+            // =========================================================
+            if (zone.getAreaNumber().contains("통로") || zone.getAreaNumber().matches(".*a-b1-00[789].*")) {
+                if (history.getResidentVehicle() != null && history.getResidentVehicle().getResident() != null) {
+                    appResidentFeatureService.sendPushToResident(
+                            history.getResidentVehicle().getResident().getNo(),
+                            "🚨 이중주차 알림",
+                            "[" + zone.getAreaNumber() + "] 구역에 이중주차가 확인되었습니다. 이동 주차 바랍니다."
+                    );
+                }
+            }
+            // =========================================================
         }
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -220,7 +236,26 @@ public class PythonGateService {
                 referenceType,
                 historyId
         );
-
+// =========================================================
+        // 👇 [새로 추가된 코드] 구역이 '통로'이고 파이썬이 보내준 후보자(candidates)가 있다면 의심 알림!
+        // =========================================================
+        if (zoneName != null && (zoneName.contains("통로") || zoneName.matches(".*a-b1-00[789].*"))) {
+            if (candidates != null && !candidates.isEmpty() && !ocrError) {
+                // 파이썬이 "12가1234,34나5678" 처럼 쉼표로 보낸 용의자 번호판들을 분리합니다.
+                String[] candidatePlates = candidates.split(",");
+                for (String cp : candidatePlates) {
+                    ResidentVehicleEntity rv = findResidentVehicle(cp.trim());
+                    if (rv != null && rv.getResident() != null) {
+                        appResidentFeatureService.sendPushToResident(
+                                rv.getResident().getNo(),
+                                "🚨 이중주차 의심 알림",
+                                "[" + zoneName + "] 구역 이중주차 차량으로 의심됩니다. 본인 차량일 경우 이동 주차 바랍니다."
+                        );
+                    }
+                }
+            }
+        }
+        // =========================================================
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("result", "ok");
         response.put("saved", notification != null);
