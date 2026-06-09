@@ -23,5 +23,6 @@ public class ParkingZoneDto {
     private Integer layoutColumn;
     private Integer layoutWidth;
     private Integer layoutHeight;
+    private String currentCarNumber;
     private String statusChangeReason;
 }
