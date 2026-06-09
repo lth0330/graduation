@@ -210,7 +210,7 @@ referenceId = parking_history.history_id
 ```
 
 알림 상세 응답에서 `referenceType`이 `parking_history`이고 주차 이력이 존재하면 `parkingHistory`가 함께 내려갑니다.
-`imagePath`는 현재 저장된 스냅샷 경로 값이며, 웹에서 직접 표시 가능한 URL 변환은 별도 이미지 제공 방식이 정해진 뒤 처리합니다.
+`imagePath`는 현재 저장된 스냅샷 경로 값입니다. Python/FastAPI가 `image_base64`를 보내면 Spring Boot가 `uploads/parking-snapshots`에 이미지 파일로 저장하고, DB에는 `/uploads/parking-snapshots/...` 경로를 저장합니다.
 
 ```json
 {
@@ -232,7 +232,7 @@ referenceId = parking_history.history_id
     "status": "PARKED",
     "parkType": "normal",
     "linkedZone": null,
-    "imagePath": "C:\\snapshots\\A1.jpg"
+    "imagePath": "/uploads/parking-snapshots/parking-snapshot-20260609_103000-abcd.jpg"
   },
   "read": false,
   "createdAt": "2026-06-08T10:31:00"
@@ -264,7 +264,7 @@ referenceId = parking_history.history_id
   "status": "PARKED",
   "parkType": "normal",
   "linkedZone": null,
-  "imagePath": "C:\\snapshots\\A1.jpg"
+  "imagePath": "/uploads/parking-snapshots/parking-snapshot-20260609_103000-abcd.jpg"
 }
 ```
 
@@ -399,7 +399,8 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 - FastAPI `config.py`의 점유율 URL은 `/api/parking/occupancy`를 사용합니다. 응답은 `total`, `used`, `available`, `rate`입니다.
 - `/api/gate/check`는 등록 차량 여부와 아파트 관리자 차단기 정책을 함께 반영한 최종 `gate_open` 값을 반환합니다.
 - `/api/gate/check` 요청의 아파트 번호는 `apartmentNo`, `apartment_no`, `a_no` 중 하나로 전달할 수 있습니다.
-- 입차 이벤트의 `image_path`는 `parking_history.image_path`에 저장합니다.
+- 입차 이벤트는 기존 `image_path`와 새 `image_base64`를 모두 받을 수 있습니다. `image_base64`가 있으면 Spring Boot가 이미지 파일을 `/uploads/parking-snapshots/...`로 저장한 뒤 그 경로를 `parking_history.image_path`에 저장합니다.
+- 번호판 수정 `/api/parking/update-plate`도 `image_base64`를 받을 수 있으며, 이미 생성된 진행 중 주차 기록의 `image_path`를 갱신합니다.
 - OCR 실패 등 Python 알림 요청은 `/api/gate/alert`를 통해 관리자 알림(`manager_notification`)으로 저장합니다. `apartment_no`나 `history_id`가 없어도 `zone`으로 주차구역을 찾아 해당 아파트 알림으로 저장합니다.
 - OCR 실패 알림은 `reference_type=parking_history`, `reference_id=history_id` 기준으로 저장합니다. `history_id`가 없는 경우에도 알림은 저장할 수 있지만, 알림 상세의 `parkingHistory`는 null입니다.
 
@@ -432,7 +433,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
   "candidates": "OCR 인식 불가 | 이미지: snapshots/a-b1-002.jpg",
   "time": "2026-06-04 12:00:00",
   "history_id": 3,
-  "image_path": "snapshots/a-b1-002.jpg"
+  "image_base64": "data:image/jpeg;base64,/9j/4AAQSk..."
 }
 ```
 

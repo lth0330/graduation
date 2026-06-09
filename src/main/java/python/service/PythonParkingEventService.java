@@ -30,6 +30,7 @@ import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.notification.service.ManagerNotificationService;
+import web.common.file.ParkingSnapshotStorageService;
 
 // 👇 [핵심 1] 앱의 주차 로직(3분 예약, 알림 설정 확인 등)을 그대로 가져다 쓰기 위한 도구들
 import app.service.AppResidentFeatureService;
@@ -62,6 +63,7 @@ public class PythonParkingEventService {
 
     // 💡 [핵심 2] 복잡한 알림 도구들을 다 지우고, 대신 '앱 서비스'를 통째로 불러옵니다!
     private final AppResidentFeatureService appResidentFeatureService;
+    private final ParkingSnapshotStorageService parkingSnapshotStorageService;
 
     public List<Map<String, String>> findCarNumbers() {
         Set<String> carNumbers = new LinkedHashSet<>();
@@ -138,7 +140,7 @@ public class PythonParkingEventService {
                 .status(HISTORY_PARKED)
                 .parkType(parkType)
                 .linkedZone(normalizeLinkedZone(requestDto.getLinkedZone()))
-                .imagePath(requestDto.getImagePath())
+                .imagePath(resolveSnapshotPath(requestDto.getImagePath(), requestDto.getImageBase64()))
                 .build();
 
         ParkingHistoryEntity savedHistory = parkingHistoryRepository.save(history);
@@ -196,6 +198,11 @@ public class PythonParkingEventService {
         history.setPlate(plate);
         history.setResidentVehicle(findResidentVehicle(plate));
         history.setVisitorVehicle(findVisitorVehicle(plate));
+
+        String imagePath = resolveSnapshotPath(requestDto.getImagePath(), requestDto.getImageBase64());
+        if (imagePath != null) {
+            history.setImagePath(imagePath);
+        }
 
         zone.setCurrentCarNumber(plate);
         zone.setStatusChangeReason("Python 객체인식 번호판 업데이트");
@@ -262,6 +269,16 @@ public class PythonParkingEventService {
             return null;
         }
         return linkedZone.trim();
+    }
+
+    private String resolveSnapshotPath(String imagePath, String imageBase64) {
+        if (imageBase64 != null && !imageBase64.isBlank()) {
+            return parkingSnapshotStorageService.saveBase64Image(imageBase64);
+        }
+        if (imagePath == null || imagePath.isBlank()) {
+            return null;
+        }
+        return imagePath.trim();
     }
 
     private void createParkingNotificationIfNeeded(ParkingZoneEntity zone, ParkingHistoryEntity history) {

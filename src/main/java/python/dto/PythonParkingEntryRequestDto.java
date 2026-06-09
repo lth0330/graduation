@@ -24,4 +24,7 @@ public class PythonParkingEntryRequestDto {
 
     @JsonProperty("image_path")
     private String imagePath;
+
+    @JsonProperty("image_base64")
+    private String imageBase64;
 }

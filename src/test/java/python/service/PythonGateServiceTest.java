@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import app.repository.RegisteredCarRepository;
+import app.service.AppResidentFeatureService;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,7 @@ class PythonGateServiceTest {
         ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
         ApartmentRepository apartmentRepository = mock(ApartmentRepository.class);
         ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);
+        AppResidentFeatureService appResidentFeatureService = mock(AppResidentFeatureService.class);
 
         ApartmentEntity apartment = ApartmentEntity.builder()
                 .no(1)
@@ -55,7 +57,8 @@ class PythonGateServiceTest {
                 parkingLotRepository,
                 parkingZoneRepository,
                 apartmentRepository,
-                managerNotificationService
+                managerNotificationService,
+                appResidentFeatureService
         );
 
         service.saveDoubleParkingAlert(Map.of(
