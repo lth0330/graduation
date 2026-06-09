@@ -133,7 +133,20 @@ public class AppResidentFeatureService {
         notification.setRead(true);
         return success();
     }
+    // =========================================================
+    // 👇 [추가] 알림 보관함에서 알림을 완전히 삭제하는 함수
+    // =========================================================
+    @Transactional
+    public Map<String, Object> deleteNotification(Integer residentNo, Integer notificationNo) {
+        // 1. 내 알림이 맞는지 확인하고 가져옵니다.
+        AppNotificationEntity notification = notificationRepository.findById(notificationNo)
+                .filter(item -> item.getResident().getNo().equals(residentNo))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found."));
 
+        // 2. DB에서 해당 알림을 삭제합니다.
+        notificationRepository.delete(notification);
+        return success();
+    }
     @Transactional
     public Map<String, Object> saveDeviceToken(Integer residentNo, AppDeviceTokenRequestDto requestDto) {
         if (requestDto == null || isBlank(requestDto.getFcmToken())) {
