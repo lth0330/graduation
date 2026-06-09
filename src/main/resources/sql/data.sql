@@ -86,13 +86,13 @@ INSERT INTO car (
 VALUES
     -- 차단기 테스트용 입주민 차량: POST /api/gate/check 에서 true 반환
     (1, '김민준 차량', '12가3456', '쏘나타', '기존 AWS DB에 있던 테스트 차량', '2026-04-30 09:05:00', 1),
-    (2, '김민준 차량2', '789호 1234', '아반떼', '차단기 OCR 테스트 차량', '2026-05-26 09:00:00', 1),
-    (3, '이서연 차량', '34나 7890', '카니발', '정기 등록 차량', '2026-04-29 10:25:00', 2),
-    (4, '정하윤 차량', '56다 1122', 'K5', '입주민 등록 차량', '2026-05-01 08:50:00', 4),
-    (5, '최지훈 차량', '78라 3344', '그랜저', '입주민 등록 차량', '2026-05-02 13:25:00', 5),
-    (6, '최지훈 세컨드카', '90마 5566', '레이', '세대 추가 차량', '2026-05-02 13:30:00', 5),
-    (7, '한은우 차량', '11바 7788', '투싼', '가입 승인 대기 차량', '2026-05-03 16:40:00', 6),
-    (8, '오수아 차량', '22사 9900', '모닝', '가입 반려 샘플 차량', '2026-05-04 10:15:00', 7)
+    (2, '김민준 차량2', '789호1234', '아반떼', '차단기 OCR 테스트 차량', '2026-05-26 09:00:00', 1),
+    (3, '이서연 차량', '34나7890', '카니발', '정기 등록 차량', '2026-04-29 10:25:00', 2),
+    (4, '정하윤 차량', '56다1122', 'K5', '입주민 등록 차량', '2026-05-01 08:50:00', 4),
+    (5, '최지훈 차량', '78라3344', '그랜저', '입주민 등록 차량', '2026-05-02 13:25:00', 5),
+    (6, '최지훈 세컨드카', '90마5566', '레이', '세대 추가 차량', '2026-05-02 13:30:00', 5),
+    (7, '한은우 차량', '11바7788', '투싼', '가입 승인 대기 차량', '2026-05-03 16:40:00', 6),
+    (8, '오수아 차량', '22사9900', '모닝', '가입 반려 샘플 차량', '2026-05-04 10:15:00', 7)
 ON DUPLICATE KEY UPDATE
     c_name = VALUES(c_name),
     c_number = VALUES(c_number),
@@ -145,11 +145,11 @@ JOIN `user` u ON u.u_no = c.u_no
 SET
     c.c_name = CONCAT(u.u_name, ' 차량'),
     c.c_number = CASE u.u_id
-        WHEN 'samplecar01' THEN '112보 5273'
-        WHEN 'samplecar02' THEN '24조 2426'
-        WHEN 'samplecar03' THEN '78호 12345'
-        WHEN 'samplecar04' THEN '42바 3579'
-        WHEN 'samplecar05' THEN '37나 5209'
+        WHEN 'samplecar01' THEN '112보5273'
+        WHEN 'samplecar02' THEN '24조2426'
+        WHEN 'samplecar03' THEN '78호12345'
+        WHEN 'samplecar04' THEN '42바3579'
+        WHEN 'samplecar05' THEN '37나5209'
         ELSE c.c_number
     END,
     c.c_kind = '테스트차량',
@@ -167,15 +167,15 @@ WHERE u.u_id IN ('samplecar01', 'samplecar02', 'samplecar03', 'samplecar04', 'sa
 INSERT INTO car (c_name, c_number, c_kind, c_note, c_date, u_no)
 SELECT sample.c_name, sample.c_number, '테스트차량', '차단기 테스트용 입주민 차량', sample.c_date, u.u_no
 FROM (
-    SELECT 'samplecar01' AS u_id, '차량샘플1 차량' AS c_name, '112보 5273' AS c_number, '2026-06-04 09:30:00' AS c_date
+    SELECT 'samplecar01' AS u_id, '차량샘플1 차량' AS c_name, '112보5273' AS c_number, '2026-06-04 09:30:00' AS c_date
     UNION ALL
-    SELECT 'samplecar02', '차량샘플2 차량', '24조 2426', '2026-06-04 09:35:00'
+    SELECT 'samplecar02', '차량샘플2 차량', '24조2426', '2026-06-04 09:35:00'
     UNION ALL
-    SELECT 'samplecar03', '차량샘플3 차량', '78호 12345', '2026-06-04 09:40:00'
+    SELECT 'samplecar03', '차량샘플3 차량', '78호12345', '2026-06-04 09:40:00'
     UNION ALL
-    SELECT 'samplecar04', '차량샘플4 차량', '42바 3579', '2026-06-04 09:45:00'
+    SELECT 'samplecar04', '차량샘플4 차량', '42바3579', '2026-06-04 09:45:00'
     UNION ALL
-    SELECT 'samplecar05', '차량샘플5 차량', '37나 5209', '2026-06-04 09:50:00'
+    SELECT 'samplecar05', '차량샘플5 차량', '37나5209', '2026-06-04 09:50:00'
 ) AS sample
 JOIN `user` u ON u.u_id = sample.u_id
 WHERE NOT EXISTS (
@@ -232,8 +232,8 @@ INSERT INTO registered_cars (
 )
 VALUES
     -- 차단기 테스트용 방문 차량: POST /api/gate/check 에서 true 반환
-    (1, 2, '22허 2026', '2026-05-08 09:00:00', NULL, NULL),
-    (2, 2, '33호 3030', '2026-05-08 11:10:00', '2026-05-08 12:00:00', '2026-05-09 12:00:00')
+    (1, 2, '22허2026', '2026-05-08 09:00:00', NULL, NULL),
+    (2, 2, '33호3030', '2026-05-08 11:10:00', '2026-05-08 12:00:00', '2026-05-09 12:00:00')
 ON DUPLICATE KEY UPDATE
     u_no = VALUES(u_no),
     c_number = VALUES(c_number),
@@ -251,14 +251,14 @@ WHERE u.u_id = 'samplecar02';
 UPDATE registered_cars v
 JOIN `user` u ON u.u_no = v.u_no
 SET
-    v.c_number = '123가 4567',
+    v.c_number = '123가4567',
     v.reg_time = '2026-06-04 10:00:00',
     v.park_time = NULL,
     v.expire_date = NULL
 WHERE u.u_id = 'samplecar01';
 
 INSERT INTO registered_cars (u_no, c_number, reg_time, park_time, expire_date)
-SELECT u.u_no, '123가 4567', '2026-06-04 10:00:00', NULL, NULL
+SELECT u.u_no, '123가4567', '2026-06-04 10:00:00', NULL, NULL
 FROM `user` u
 WHERE u.u_id = 'samplecar01'
   AND NOT EXISTS (
@@ -270,7 +270,7 @@ INSERT INTO notifications (
     noti_no, u_no, noti_type, noti_title, noti_message, is_read, created_at
 )
 VALUES
-    (1, 2, 'visitor', '방문 차량 입차 알림', '[33호 3030] 방문 차량이 주차장에 들어왔습니다.', 0, '2026-05-08 12:00:00'),
+    (1, 2, 'visitor', '방문 차량 입차 알림', '[33호3030] 방문 차량이 주차장에 들어왔습니다.', 0, '2026-05-08 12:00:00'),
     (2, 2, 'parking', '주차구역 상태 변경', 'a-b1-002 구역이 비어 있음으로 변경되었습니다.', 1, '2026-05-08 13:30:00')
 ON DUPLICATE KEY UPDATE
     u_no = VALUES(u_no),
