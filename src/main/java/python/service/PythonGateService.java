@@ -51,6 +51,7 @@ public class PythonGateService {
     private final ManagerNotificationService managerNotificationService;
     private final AppResidentFeatureService appResidentFeatureService; // 👈 추가!
     // 주민 차량과 방문 차량 테이블을 모두 확인하고 관리자 차단 정책까지 반영해 차단기 개방 여부를 만든다.
+    @Transactional
     public Map<String, Object> checkPlate(String plate, Integer apartmentNo) {
         String normalizedPlate = normalizePlate(plate);
         ResidentVehicleEntity residentVehicle = normalizedPlate != null ? findResidentVehicle(normalizedPlate) : null;
