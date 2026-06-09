@@ -138,52 +138,50 @@ WHERE NOT EXISTS (
     WHERE existing_user.u_id = sample.u_id
 );
 
--- 요청 샘플 차량 7대 중 5대는 입주민 차량(car), 2대는 방문 차량(registered_cars)으로 등록한다.
--- 차량번호 중복 방지를 위해 공백을 제거한 번호 기준으로 이미 있으면 그대로 둔다.
-INSERT INTO car (c_name, c_number, c_kind, c_note, c_date, u_no)
-SELECT '차량샘플1 차량', '37나 5209', '테스트차량', '차단기 테스트용 입주민 차량', '2026-06-04 09:30:00', u.u_no
-FROM `user` u
-WHERE u.u_id = 'samplecar01'
-  AND NOT EXISTS (
-      SELECT 1 FROM (SELECT c_number FROM car) existing_car
-      WHERE REPLACE(existing_car.c_number, ' ', '') = REPLACE('37나 5209', ' ', '')
-  );
+-- 요청 샘플 차량 6대 중 5대는 입주민 차량(car), 1대는 방문 차량(registered_cars)으로 등록한다.
+-- 기존 샘플 번호가 남지 않도록 samplecar01~05의 차량번호를 요청 번호로 갱신한다.
+UPDATE car c
+JOIN `user` u ON u.u_no = c.u_no
+SET
+    c.c_name = CONCAT(u.u_name, ' 차량'),
+    c.c_number = CASE u.u_id
+        WHEN 'samplecar01' THEN '112보 5273'
+        WHEN 'samplecar02' THEN '24조 2426'
+        WHEN 'samplecar03' THEN '78호 12345'
+        WHEN 'samplecar04' THEN '42바 3579'
+        WHEN 'samplecar05' THEN '37나 5209'
+        ELSE c.c_number
+    END,
+    c.c_kind = '테스트차량',
+    c.c_note = '차단기 테스트용 입주민 차량',
+    c.c_date = CASE u.u_id
+        WHEN 'samplecar01' THEN '2026-06-04 09:30:00'
+        WHEN 'samplecar02' THEN '2026-06-04 09:35:00'
+        WHEN 'samplecar03' THEN '2026-06-04 09:40:00'
+        WHEN 'samplecar04' THEN '2026-06-04 09:45:00'
+        WHEN 'samplecar05' THEN '2026-06-04 09:50:00'
+        ELSE c.c_date
+    END
+WHERE u.u_id IN ('samplecar01', 'samplecar02', 'samplecar03', 'samplecar04', 'samplecar05');
 
 INSERT INTO car (c_name, c_number, c_kind, c_note, c_date, u_no)
-SELECT '차량샘플2 차량', '42하 3579', '테스트차량', '차단기 테스트용 입주민 차량', '2026-06-04 09:35:00', u.u_no
-FROM `user` u
-WHERE u.u_id = 'samplecar02'
-  AND NOT EXISTS (
-      SELECT 1 FROM (SELECT c_number FROM car) existing_car
-      WHERE REPLACE(existing_car.c_number, ' ', '') = REPLACE('42하 3579', ' ', '')
-  );
-
-INSERT INTO car (c_name, c_number, c_kind, c_note, c_date, u_no)
-SELECT '차량샘플3 차량', '112가 5273', '테스트차량', '차단기 테스트용 입주민 차량', '2026-06-04 09:40:00', u.u_no
-FROM `user` u
-WHERE u.u_id = 'samplecar03'
-  AND NOT EXISTS (
-      SELECT 1 FROM (SELECT c_number FROM car) existing_car
-      WHERE REPLACE(existing_car.c_number, ' ', '') = REPLACE('112가 5273', ' ', '')
-  );
-
-INSERT INTO car (c_name, c_number, c_kind, c_note, c_date, u_no)
-SELECT '차량샘플4 차량', '24조 2426', '테스트차량', '차단기 테스트용 입주민 차량', '2026-06-04 09:45:00', u.u_no
-FROM `user` u
-WHERE u.u_id = 'samplecar04'
-  AND NOT EXISTS (
-      SELECT 1 FROM (SELECT c_number FROM car) existing_car
-      WHERE REPLACE(existing_car.c_number, ' ', '') = REPLACE('24조 2426', ' ', '')
-  );
-
-INSERT INTO car (c_name, c_number, c_kind, c_note, c_date, u_no)
-SELECT '차량샘플5 차량', '85바 4589', '테스트차량', '차단기 테스트용 입주민 차량', '2026-06-04 09:50:00', u.u_no
-FROM `user` u
-WHERE u.u_id = 'samplecar05'
-  AND NOT EXISTS (
-      SELECT 1 FROM (SELECT c_number FROM car) existing_car
-      WHERE REPLACE(existing_car.c_number, ' ', '') = REPLACE('85바 4589', ' ', '')
-  );
+SELECT sample.c_name, sample.c_number, '테스트차량', '차단기 테스트용 입주민 차량', sample.c_date, u.u_no
+FROM (
+    SELECT 'samplecar01' AS u_id, '차량샘플1 차량' AS c_name, '112보 5273' AS c_number, '2026-06-04 09:30:00' AS c_date
+    UNION ALL
+    SELECT 'samplecar02', '차량샘플2 차량', '24조 2426', '2026-06-04 09:35:00'
+    UNION ALL
+    SELECT 'samplecar03', '차량샘플3 차량', '78호 12345', '2026-06-04 09:40:00'
+    UNION ALL
+    SELECT 'samplecar04', '차량샘플4 차량', '42바 3579', '2026-06-04 09:45:00'
+    UNION ALL
+    SELECT 'samplecar05', '차량샘플5 차량', '37나 5209', '2026-06-04 09:50:00'
+) AS sample
+JOIN `user` u ON u.u_id = sample.u_id
+WHERE NOT EXISTS (
+    SELECT 1 FROM car existing_car
+    WHERE existing_car.u_no = u.u_no
+);
 
 INSERT INTO parking_lot (
     pl_no, a_no, pl_name, pl_floor, total_spaces, used_spaces
@@ -243,24 +241,29 @@ ON DUPLICATE KEY UPDATE
     park_time = VALUES(park_time),
     expire_date = VALUES(expire_date);
 
--- 요청 샘플 차량 7대 중 방문 차량 2대.
--- 이미 등록된 번호가 있으면 기존 데이터를 유지한다.
+-- 요청 샘플 방문 차량 1대.
+-- 기존 samplecar01 방문차량이 있으면 번호를 갱신하고, 없으면 새로 등록한다.
+DELETE v
+FROM registered_cars v
+JOIN `user` u ON u.u_no = v.u_no
+WHERE u.u_id = 'samplecar02';
+
+UPDATE registered_cars v
+JOIN `user` u ON u.u_no = v.u_no
+SET
+    v.c_number = '123가 4567',
+    v.reg_time = '2026-06-04 10:00:00',
+    v.park_time = NULL,
+    v.expire_date = NULL
+WHERE u.u_id = 'samplecar01';
+
 INSERT INTO registered_cars (u_no, c_number, reg_time, park_time, expire_date)
 SELECT u.u_no, '123가 4567', '2026-06-04 10:00:00', NULL, NULL
 FROM `user` u
 WHERE u.u_id = 'samplecar01'
   AND NOT EXISTS (
-      SELECT 1 FROM (SELECT c_number FROM registered_cars) existing_visitor_car
-      WHERE REPLACE(existing_visitor_car.c_number, ' ', '') = REPLACE('123가 4567', ' ', '')
-  );
-
-INSERT INTO registered_cars (u_no, c_number, reg_time, park_time, expire_date)
-SELECT u.u_no, '45나 8901', '2026-06-04 10:05:00', NULL, NULL
-FROM `user` u
-WHERE u.u_id = 'samplecar02'
-  AND NOT EXISTS (
-      SELECT 1 FROM (SELECT c_number FROM registered_cars) existing_visitor_car
-      WHERE REPLACE(existing_visitor_car.c_number, ' ', '') = REPLACE('45나 8901', ' ', '')
+      SELECT 1 FROM registered_cars existing_visitor_car
+      WHERE existing_visitor_car.u_no = u.u_no
   );
 
 INSERT INTO notifications (
