@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -119,12 +118,20 @@ public class PythonParkingEventService {
 
         String plate = normalizePlate(requestDto.getPlate());
         String parkType = normalizeParkType(requestDto.getParkType(), zone);
+        String linkedZoneName = normalizeLinkedZone(requestDto.getLinkedZone());
+        ParkingZoneEntity linkedZone = findLinkedZoneIfNeeded(zone, parkType, linkedZoneName);
         ResidentVehicleEntity residentVehicle = findResidentVehicle(plate);
         RegisteredCarEntity visitorVehicle = findVisitorVehicle(plate);
 
         zone.setStatus(STATUS_OCCUPIED);
         zone.setCurrentCarNumber(plate);
         zone.setStatusChangeReason("Python 객체인식 입차 이벤트");
+        if (linkedZone != null) {
+            linkedZone.setStatus(STATUS_OCCUPIED);
+            linkedZone.setCurrentCarNumber(plate);
+            linkedZone.setStatusChangeReason("Python 객체인식 연결 주차칸 점유");
+        }
+        synchronizeUsedSpaces(zone, linkedZone);
 
         if (visitorVehicle != null && visitorVehicle.getParkedAt() == null) {
             visitorVehicle.setParkedAt(parseDateTime(requestDto.getEntryTime()));
@@ -139,22 +146,13 @@ public class PythonParkingEventService {
                 .entryTime(parseDateTime(requestDto.getEntryTime()))
                 .status(HISTORY_PARKED)
                 .parkType(parkType)
-                .linkedZone(normalizeLinkedZone(requestDto.getLinkedZone()))
+                .linkedZone(linkedZoneName)
                 .imagePath(resolveSnapshotPath(requestDto.getImagePath(), requestDto.getImageBase64()))
                 .build();
 
         ParkingHistoryEntity savedHistory = parkingHistoryRepository.save(history);
 
-        // =========================================================
-        // 💡 [핵심 3] 복잡한 푸시 알림 코드를 싹 지우고, 앱 서비스에게 입차 사실만 넘깁니다!
-        // 그러면 앱 서비스가 알아서 방해금지 설정(ON/OFF) 확인하고 알림을 예쁘게 쏴줍니다.
-        // =========================================================
-        AppParkingUpdateRequestDto req = new AppParkingUpdateRequestDto();
-        AppParkingUpdateItemDto item = new AppParkingUpdateItemDto();
-        item.setSlot(zone.getAreaNumber());
-        item.setStatus(STATUS_OCCUPIED);
-        req.setUpdates(Collections.singletonList(item));
-        appResidentFeatureService.updateParking(req);
+        appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_OCCUPIED, zone, linkedZone));
 
         createParkingNotificationIfNeeded(zone, savedHistory);
         return result("entry", zone, savedHistory);
@@ -173,17 +171,15 @@ public class PythonParkingEventService {
         zone.setStatus(STATUS_EMPTY);
         zone.setCurrentCarNumber(null);
         zone.setStatusChangeReason("Python 객체인식 출차 이벤트");
+        ParkingZoneEntity linkedZone = findLinkedZoneForExit(history);
+        if (linkedZone != null) {
+            linkedZone.setStatus(STATUS_EMPTY);
+            linkedZone.setCurrentCarNumber(null);
+            linkedZone.setStatusChangeReason("Python 객체인식 연결 주차칸 출차");
+        }
+        synchronizeUsedSpaces(zone, linkedZone);
 
-        // =========================================================
-        // 💡 [핵심 4] 옛날 방식의 전체 발송 코드를 지우고, 앱 서비스에게 넘깁니다!
-        // 이제 카메라가 차가 빠진 걸 인식하면, 서버가 1등 대기자를 찾아 3분 타이머를 완벽하게 돌립니다.
-        // =========================================================
-        AppParkingUpdateRequestDto req = new AppParkingUpdateRequestDto();
-        AppParkingUpdateItemDto item = new AppParkingUpdateItemDto();
-        item.setSlot(zone.getAreaNumber());
-        item.setStatus(STATUS_EMPTY);
-        req.setUpdates(Collections.singletonList(item));
-        appResidentFeatureService.updateParking(req);
+        appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_EMPTY, zone, linkedZone));
 
         return result("exit", zone, history);
     }
@@ -194,9 +190,11 @@ public class PythonParkingEventService {
         ParkingZoneEntity zone = findZone(requestDto.getZone());
         ParkingHistoryEntity history = findActiveHistory(zone);
 
+        String previousPlate = history.getPlate();
         String plate = normalizePlate(requestDto.getPlate());
+        ResidentVehicleEntity residentVehicle = findResidentVehicle(plate);
         history.setPlate(plate);
-        history.setResidentVehicle(findResidentVehicle(plate));
+        history.setResidentVehicle(residentVehicle);
         history.setVisitorVehicle(findVisitorVehicle(plate));
 
         String imagePath = resolveSnapshotPath(requestDto.getImagePath(), requestDto.getImageBase64());
@@ -206,6 +204,12 @@ public class PythonParkingEventService {
 
         zone.setCurrentCarNumber(plate);
         zone.setStatusChangeReason("Python 객체인식 번호판 업데이트");
+        ParkingZoneEntity linkedZone = findLinkedZoneForExit(history);
+        if (linkedZone != null) {
+            linkedZone.setCurrentCarNumber(plate);
+            linkedZone.setStatusChangeReason("Python 객체인식 연결 주차칸 번호판 업데이트");
+        }
+        sendParkingCompleteNotificationIfNeeded(zone, previousPlate, residentVehicle);
 
         return result("update", zone, history);
     }
@@ -251,7 +255,8 @@ public class PythonParkingEventService {
         if (plate == null || plate.isBlank()) {
             return UNKNOWN_PLATE;
         }
-        return plate.trim();
+        String compactPlate = plate.replaceAll("\\s+", "");
+        return compactPlate.isBlank() ? UNKNOWN_PLATE : compactPlate;
     }
 
     private String normalizeParkType(String requestedParkType, ParkingZoneEntity zone) {
@@ -279,6 +284,83 @@ public class PythonParkingEventService {
             return null;
         }
         return imagePath.trim();
+    }
+
+    private ParkingZoneEntity findLinkedZoneIfNeeded(
+            ParkingZoneEntity zone,
+            String parkType,
+            String linkedZoneName
+    ) {
+        if (!PARK_TYPE_MULTI_ZONE.equals(parkType) || linkedZoneName == null) {
+            return null;
+        }
+        if (zone.getAreaNumber().equals(linkedZoneName)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "연결 주차구역은 입차 구역과 달라야 합니다.");
+        }
+        ParkingZoneEntity linkedZone = findZone(linkedZoneName);
+        if (STATUS_OCCUPIED.equals(linkedZone.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "연결 주차구역이 이미 주차 중입니다.");
+        }
+        return linkedZone;
+    }
+
+    private ParkingZoneEntity findLinkedZoneForExit(ParkingHistoryEntity history) {
+        String linkedZoneName = normalizeLinkedZone(history.getLinkedZone());
+        if (linkedZoneName == null) {
+            return null;
+        }
+        return parkingZoneRepository.findByAreaNumber(linkedZoneName).orElse(null);
+    }
+
+    private void synchronizeUsedSpaces(ParkingZoneEntity zone, ParkingZoneEntity linkedZone) {
+        synchronizeUsedSpaces(zone);
+        if (linkedZone != null && !isSameParkingLot(zone, linkedZone)) {
+            synchronizeUsedSpaces(linkedZone);
+        }
+    }
+
+    private boolean isSameParkingLot(ParkingZoneEntity firstZone, ParkingZoneEntity secondZone) {
+        if (firstZone == null || secondZone == null
+                || firstZone.getParkingLot() == null || secondZone.getParkingLot() == null) {
+            return false;
+        }
+        Integer firstLotNo = firstZone.getParkingLot().getNo();
+        Integer secondLotNo = secondZone.getParkingLot().getNo();
+        return firstLotNo != null && firstLotNo.equals(secondLotNo);
+    }
+
+    private void synchronizeUsedSpaces(ParkingZoneEntity zone) {
+        if (zone == null || zone.getParkingLot() == null || zone.getParkingLot().getNo() == null) {
+            return;
+        }
+        long occupiedCount = parkingZoneRepository.countByParkingLot_NoAndStatus(
+                zone.getParkingLot().getNo(),
+                STATUS_OCCUPIED
+        );
+        zone.getParkingLot().setUsedSpaces((int) Math.min(occupiedCount, Integer.MAX_VALUE));
+    }
+
+    private AppParkingUpdateRequestDto buildParkingUpdateRequest(
+            String status,
+            ParkingZoneEntity zone,
+            ParkingZoneEntity linkedZone
+    ) {
+        List<AppParkingUpdateItemDto> updates = new ArrayList<>();
+        updates.add(buildParkingUpdateItem(zone, status));
+        if (linkedZone != null) {
+            updates.add(buildParkingUpdateItem(linkedZone, status));
+        }
+
+        AppParkingUpdateRequestDto requestDto = new AppParkingUpdateRequestDto();
+        requestDto.setUpdates(updates);
+        return requestDto;
+    }
+
+    private AppParkingUpdateItemDto buildParkingUpdateItem(ParkingZoneEntity zone, String status) {
+        AppParkingUpdateItemDto item = new AppParkingUpdateItemDto();
+        item.setSlot(zone.getAreaNumber());
+        item.setStatus(status);
+        return item;
     }
 
     private void createParkingNotificationIfNeeded(ParkingZoneEntity zone, ParkingHistoryEntity history) {
@@ -311,6 +393,27 @@ public class PythonParkingEventService {
                 message,
                 "parking_history",
                 history.getId()
+        );
+    }
+
+    private void sendParkingCompleteNotificationIfNeeded(
+            ParkingZoneEntity zone,
+            String previousPlate,
+            ResidentVehicleEntity residentVehicle
+    ) {
+        if (!UNKNOWN_PLATE.equals(previousPlate)
+                || residentVehicle == null
+                || residentVehicle.getResident() == null
+                || residentVehicle.getResident().getNo() == null) {
+            return;
+        }
+        String message = "[" + zone.getAreaNumber() + "] 구역에 차량("
+                + residentVehicle.getNumber()
+                + ") 주차가 완료되었습니다.";
+        appResidentFeatureService.sendPushToResident(
+                residentVehicle.getResident().getNo(),
+                "🅿️ 주차 완료 알림",
+                message
         );
     }
 

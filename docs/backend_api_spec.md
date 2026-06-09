@@ -134,11 +134,21 @@ visitorCarLimit = 2
 
 ## 7. 방문차량 관리
 
-아파트 관리자가 앱에서 등록된 방문차량을 조회하는 API입니다.
+아파트 관리자가 앱에서 등록된 방문차량을 조회하고, 만료시간 수정 또는 삭제를 처리하는 API입니다.
 
 | 기능 | Method | URL |
 |---|---:|---|
 | 방문차량 목록 | GET | `/api/visitor-cars?apartmentNo=1` |
+| 방문차량 만료시간 수정 | PATCH | `/api/visitor-cars/{visitorCarNo}/expires-at?apartmentNo=1` |
+| 방문차량 삭제 | DELETE | `/api/visitor-cars/{visitorCarNo}?apartmentNo=1` |
+
+만료시간 수정 요청:
+
+```json
+{
+  "expiresAt": "2026-06-10T18:30:00"
+}
+```
 
 조회 기준:
 

@@ -2,6 +2,7 @@ package python.service;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,8 +21,100 @@ import web.parking.repository.ParkingHistoryRepository;
 import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
+import web.parking.entity.ResidentVehicleEntity;
+import web.resident.entity.ResidentEntity;
 
 class PythonGateServiceTest {
+
+    @Test
+    void checkPlateRemovesWhitespaceBeforeMatchingAndResponding() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        RegisteredCarRepository registeredCarRepository = mock(RegisteredCarRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        GateEntryLogRepository gateEntryLogRepository = mock(GateEntryLogRepository.class);
+        ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
+        ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
+        ApartmentRepository apartmentRepository = mock(ApartmentRepository.class);
+        ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);
+        AppResidentFeatureService appResidentFeatureService = mock(AppResidentFeatureService.class);
+
+        ApartmentEntity apartment = ApartmentEntity.builder()
+                .no(1)
+                .name("테스트아파트")
+                .build();
+        ResidentEntity resident = ResidentEntity.builder().no(7).name("차량소유자").apartment(apartment).build();
+        ResidentVehicleEntity vehicle = ResidentVehicleEntity.builder()
+                .number("37나5209")
+                .resident(resident)
+                .build();
+
+        when(apartmentRepository.findById(1)).thenReturn(Optional.of(apartment));
+        when(residentVehicleRepository.findByNumber("37나5209")).thenReturn(Optional.of(vehicle));
+
+        PythonGateService service = new PythonGateService(
+                residentVehicleRepository,
+                registeredCarRepository,
+                parkingHistoryRepository,
+                gateEntryLogRepository,
+                parkingLotRepository,
+                parkingZoneRepository,
+                apartmentRepository,
+                managerNotificationService,
+                appResidentFeatureService
+        );
+
+        Map<String, Object> result = service.checkPlate("37나 5209", 1);
+
+        assertThat(result.get("plate")).isEqualTo("37나5209");
+        assertThat(result.get("gate_open")).isEqualTo(true);
+        verify(residentVehicleRepository).findByNumber("37나5209");
+    }
+
+    @Test
+    void checkPlateSendsGateEntryNotificationToResidentVehicleOwner() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        RegisteredCarRepository registeredCarRepository = mock(RegisteredCarRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        GateEntryLogRepository gateEntryLogRepository = mock(GateEntryLogRepository.class);
+        ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
+        ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
+        ApartmentRepository apartmentRepository = mock(ApartmentRepository.class);
+        ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);
+        AppResidentFeatureService appResidentFeatureService = mock(AppResidentFeatureService.class);
+
+        ApartmentEntity apartment = ApartmentEntity.builder()
+                .no(1)
+                .name("테스트아파트")
+                .build();
+        ResidentEntity resident = ResidentEntity.builder().no(7).name("차량소유자").apartment(apartment).build();
+        ResidentVehicleEntity vehicle = ResidentVehicleEntity.builder()
+                .number("37나5209")
+                .resident(resident)
+                .build();
+
+        when(apartmentRepository.findById(1)).thenReturn(Optional.of(apartment));
+        when(residentVehicleRepository.findByNumber("37나5209")).thenReturn(Optional.of(vehicle));
+
+        PythonGateService service = new PythonGateService(
+                residentVehicleRepository,
+                registeredCarRepository,
+                parkingHistoryRepository,
+                gateEntryLogRepository,
+                parkingLotRepository,
+                parkingZoneRepository,
+                apartmentRepository,
+                managerNotificationService,
+                appResidentFeatureService
+        );
+
+        service.checkPlate("37나5209", 1);
+
+        verify(appResidentFeatureService).sendPushToResident(
+                7,
+                "🚗 입차 알림",
+                "37나5209 차량이 입구를 통과했습니다."
+        );
+    }
 
     @Test
     void saveDoubleParkingAlertSavesOcrErrorWithParkingHistoryReference() {

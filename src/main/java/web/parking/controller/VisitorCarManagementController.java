@@ -3,10 +3,15 @@ package web.parking.controller;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import web.parking.dto.VisitorCarExpirationUpdateRequestDto;
 import web.parking.dto.VisitorCarManagementDto;
 import web.parking.service.VisitorCarManagementService;
 
@@ -22,5 +27,29 @@ public class VisitorCarManagementController {
     // Read: 특정 아파트의 방문 차량 목록을 조회한다.
     public ResponseEntity<List<VisitorCarManagementDto>> findVisitorCars(@RequestParam Integer apartmentNo) {
         return ResponseEntity.ok(visitorCarManagementService.findVisitorCars(apartmentNo));
+    }
+
+    @PatchMapping("/{visitorCarNo}/expires-at")
+    // Update: 방문 차량의 만료시간을 관리자가 직접 수정한다.
+    public ResponseEntity<VisitorCarManagementDto> updateExpiresAt(
+            @PathVariable Integer visitorCarNo,
+            @RequestParam Integer apartmentNo,
+            @RequestBody VisitorCarExpirationUpdateRequestDto requestDto
+    ) {
+        return ResponseEntity.ok(visitorCarManagementService.updateExpiresAt(
+                visitorCarNo,
+                apartmentNo,
+                requestDto.getExpiresAt()
+        ));
+    }
+
+    @DeleteMapping("/{visitorCarNo}")
+    // Delete: 방문 차량 등록 정보를 삭제한다.
+    public ResponseEntity<Void> delete(
+            @PathVariable Integer visitorCarNo,
+            @RequestParam Integer apartmentNo
+    ) {
+        visitorCarManagementService.delete(visitorCarNo, apartmentNo);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -93,6 +93,7 @@ public class PythonGateService {
                 full,
                 overThreshold
         ));
+        sendGateEntryNotificationIfNeeded(residentVehicle, gateOpen);
         return response;
     }
 
@@ -295,7 +296,8 @@ public class PythonGateService {
         if (plate == null || plate.isBlank()) {
             return null;
         }
-        return plate.trim();
+        String compactPlate = compact(plate);
+        return compactPlate.isBlank() ? null : compactPlate;
     }
 
     private boolean existsByCompactPlate(String plate) {
@@ -375,6 +377,21 @@ public class PythonGateService {
         return apartment != null
                 && apartment.getGateForceOpenEnabled() != null
                 && apartment.getGateForceOpenEnabled();
+    }
+
+    private void sendGateEntryNotificationIfNeeded(ResidentVehicleEntity residentVehicle, boolean gateOpen) {
+        if (!gateOpen || residentVehicle == null || residentVehicle.getResident() == null) {
+            return;
+        }
+        Integer residentNo = residentVehicle.getResident().getNo();
+        if (residentNo == null) {
+            return;
+        }
+        appResidentFeatureService.sendPushToResident(
+                residentNo,
+                "🚗 입차 알림",
+                residentVehicle.getNumber() + " 차량이 입구를 통과했습니다."
+        );
     }
 
     private Occupancy calculateOccupancy(ApartmentEntity apartment) {
