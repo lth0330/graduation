@@ -190,6 +190,7 @@ registered_cars.u_no -> user.u_no -> user.a_no
 `layoutWidth`, `layoutHeight`는 CSS Grid 기준으로 해당 주차칸이 차지하는 가로/세로 칸 수입니다.
 값을 보내지 않으면 백엔드는 일반 주차칸 기준 기본값으로 `layoutWidth=2`, `layoutHeight=1`을 사용합니다.
 새 주차구역을 만들거나 배치를 수정할 때 기존 주차구역의 배치 영역과 겹치면 `409 Conflict`를 반환합니다.
+주차칸에 진행 중인 주차 이력이 있고 Python 이미지가 저장된 경우 목록 응답에 `imagePath`가 포함됩니다.
 
 구역 종류:
 

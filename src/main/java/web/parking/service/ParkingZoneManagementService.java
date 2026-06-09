@@ -22,6 +22,7 @@ import web.parking.dto.ParkingZoneSaveRequestDto;
 import web.parking.dto.ParkingZoneStatusRequestDto;
 import web.parking.entity.ParkingLotEntity;
 import web.parking.entity.ParkingZoneEntity;
+import web.parking.repository.ParkingHistoryRepository;
 import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 
@@ -33,9 +34,11 @@ public class ParkingZoneManagementService {
 
     private static final int DEFAULT_LAYOUT_WIDTH = 2;
     private static final int DEFAULT_LAYOUT_HEIGHT = 1;
+    private static final String HISTORY_PARKED = "PARKED";
 
     private final ParkingZoneRepository parkingZoneRepository;
     private final ParkingLotRepository parkingLotRepository;
+    private final ParkingHistoryRepository parkingHistoryRepository;
 
     // 👇 [핵심 2] 알림을 보내기 위해 필요한 부품(도구)들을 조립해 줍니다!
     private final WaitingListRepository waitingListRepository;
@@ -300,7 +303,21 @@ public class ParkingZoneManagementService {
                 .layoutHeight(normalizeLayoutSize(parkingZone.getLayoutHeight(), DEFAULT_LAYOUT_HEIGHT))
                 .currentCarNumber(parkingZone.getCurrentCarNumber())
                 .statusChangeReason(parkingZone.getStatusChangeReason())
+                .imagePath(findActiveHistoryImagePath(parkingZone))
                 .build();
+    }
+
+    private String findActiveHistoryImagePath(ParkingZoneEntity parkingZone) {
+        if (parkingZone == null || parkingZone.getNo() == null) {
+            return null;
+        }
+        return parkingHistoryRepository
+                .findFirstByParkingZone_NoAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(
+                        parkingZone.getNo(),
+                        HISTORY_PARKED
+                )
+                .map(history -> history.getImagePath())
+                .orElse(null);
     }
 
     private Integer normalizeLayoutSize(Integer value, Integer defaultValue) {

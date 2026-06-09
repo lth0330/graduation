@@ -25,4 +25,5 @@ public class ParkingZoneDto {
     private Integer layoutHeight;
     private String currentCarNumber;
     private String statusChangeReason;
+    private String imagePath;
 }

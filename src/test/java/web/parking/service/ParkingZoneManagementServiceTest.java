@@ -19,8 +19,10 @@ import app.service.FcmService;
 import web.parking.dto.ParkingZoneDto;
 import web.parking.dto.ParkingZoneLayoutRequestDto;
 import web.parking.dto.ParkingZoneSaveRequestDto;
+import web.parking.entity.ParkingHistoryEntity;
 import web.parking.entity.ParkingLotEntity;
 import web.parking.entity.ParkingZoneEntity;
+import web.parking.repository.ParkingHistoryRepository;
 import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 
@@ -76,6 +78,48 @@ class ParkingZoneManagementServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getCurrentCarNumber()).isEqualTo("12가3456");
+    }
+
+    @Test
+    void findParkingZonesIncludesActiveParkingHistoryImagePath() {
+        ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
+        ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        ParkingLotEntity parkingLot = ParkingLotEntity.builder().no(1).build();
+        ParkingZoneEntity occupiedZone = ParkingZoneEntity.builder()
+                .no(10)
+                .parkingLot(parkingLot)
+                .areaNumber("A1")
+                .location("B1")
+                .status("occupied")
+                .layoutRow(1)
+                .layoutColumn(1)
+                .layoutWidth(1)
+                .layoutHeight(2)
+                .currentCarNumber("UNKNOWN")
+                .build();
+        ParkingHistoryEntity activeHistory = ParkingHistoryEntity.builder()
+                .parkingZone(occupiedZone)
+                .status("PARKED")
+                .imagePath("/uploads/parking-snapshots/A1.jpg")
+                .build();
+
+        when(parkingZoneRepository.findByParkingLot_No(1)).thenReturn(List.of(occupiedZone));
+        when(parkingHistoryRepository.findFirstByParkingZone_NoAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(
+                10,
+                "PARKED"
+        )).thenReturn(Optional.of(activeHistory));
+
+        ParkingZoneManagementService service = createService(
+                parkingZoneRepository,
+                parkingLotRepository,
+                parkingHistoryRepository
+        );
+
+        List<ParkingZoneDto> result = service.findParkingZones(1);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getImagePath()).isEqualTo("/uploads/parking-snapshots/A1.jpg");
     }
 
     @Test
@@ -159,9 +203,18 @@ class ParkingZoneManagementServiceTest {
             ParkingZoneRepository parkingZoneRepository,
             ParkingLotRepository parkingLotRepository
     ) {
+        return createService(parkingZoneRepository, parkingLotRepository, mock(ParkingHistoryRepository.class));
+    }
+
+    private ParkingZoneManagementService createService(
+            ParkingZoneRepository parkingZoneRepository,
+            ParkingLotRepository parkingLotRepository,
+            ParkingHistoryRepository parkingHistoryRepository
+    ) {
         return new ParkingZoneManagementService(
                 parkingZoneRepository,
                 parkingLotRepository,
+                parkingHistoryRepository,
                 mock(WaitingListRepository.class),
                 mock(AppNotificationRepository.class),
                 mock(AppSettingRepository.class),
