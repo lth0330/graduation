@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import app.repository.RegisteredCarRepository;
 import app.service.AppResidentFeatureService;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -27,6 +29,32 @@ import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
 
 class PythonParkingEventServiceTest {
+
+    @Test
+    void findOccupancyCalculatesNormalZonesOnly() {
+        ServiceFixture fixture = new ServiceFixture();
+        ParkingLotEntity parkingLot = ParkingLotEntity.builder()
+                .no(1)
+                .totalSpaces(5)
+                .usedSpaces(4)
+                .build();
+
+        when(fixture.parkingLotRepository.findAll()).thenReturn(List.of(parkingLot));
+        when(fixture.parkingZoneRepository.findByParkingLot_No(1)).thenReturn(List.of(
+                normalZone(parkingLot, "a-b1-001", "occupied"),
+                normalZone(parkingLot, "a-b1-002", "occupied"),
+                normalZone(parkingLot, "a-b1-003", "occupied"),
+                normalZone(parkingLot, "a-b1-004", "empty"),
+                doubleLaneZone(parkingLot, "a-b1-007", "occupied")
+        ));
+
+        Map<String, Object> result = fixture.service.findOccupancy();
+
+        assertThat(result.get("total")).isEqualTo(4);
+        assertThat(result.get("used")).isEqualTo(3);
+        assertThat(result.get("available")).isEqualTo(1);
+        assertThat(result.get("rate")).isEqualTo(0.75);
+    }
 
     @Test
     void saveEntryRemovesPlateWhitespaceBeforeSavingAndMatching() {
@@ -77,7 +105,11 @@ class PythonParkingEventServiceTest {
                 .build();
 
         when(fixture.parkingZoneRepository.findByAreaNumber("a-b1-001")).thenReturn(Optional.of(zone));
-        when(fixture.parkingZoneRepository.countByParkingLot_NoAndStatus(1, "occupied")).thenReturn(3L);
+        when(fixture.parkingZoneRepository.countByParkingLot_NoAndZoneTypeAndStatus(
+                1,
+                "normal",
+                "occupied"
+        )).thenReturn(3L);
         when(fixture.parkingHistoryRepository.save(any(ParkingHistoryEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -114,7 +146,11 @@ class PythonParkingEventServiceTest {
 
         when(fixture.parkingZoneRepository.findByAreaNumber("a-b1-001")).thenReturn(Optional.of(mainZone));
         when(fixture.parkingZoneRepository.findByAreaNumber("a-b1-002")).thenReturn(Optional.of(linkedZone));
-        when(fixture.parkingZoneRepository.countByParkingLot_NoAndStatus(1, "occupied")).thenReturn(2L);
+        when(fixture.parkingZoneRepository.countByParkingLot_NoAndZoneTypeAndStatus(
+                1,
+                "normal",
+                "occupied"
+        )).thenReturn(2L);
         when(fixture.parkingHistoryRepository.save(any(ParkingHistoryEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -203,7 +239,11 @@ class PythonParkingEventServiceTest {
                 1,
                 "PARKED"
         )).thenReturn(Optional.of(activeHistory));
-        when(fixture.parkingZoneRepository.countByParkingLot_NoAndStatus(1, "occupied")).thenReturn(0L);
+        when(fixture.parkingZoneRepository.countByParkingLot_NoAndZoneTypeAndStatus(
+                1,
+                "normal",
+                "occupied"
+        )).thenReturn(0L);
 
         python.dto.PythonParkingExitRequestDto requestDto = new python.dto.PythonParkingExitRequestDto();
         requestDto.setZone("a-b1-001");
@@ -316,5 +356,23 @@ class PythonParkingEventServiceTest {
                 appResidentFeatureService,
                 snapshotStorageService
         );
+    }
+
+    private ParkingZoneEntity normalZone(ParkingLotEntity parkingLot, String areaNumber, String status) {
+        return ParkingZoneEntity.builder()
+                .parkingLot(parkingLot)
+                .areaNumber(areaNumber)
+                .zoneType("normal")
+                .status(status)
+                .build();
+    }
+
+    private ParkingZoneEntity doubleLaneZone(ParkingLotEntity parkingLot, String areaNumber, String status) {
+        return ParkingZoneEntity.builder()
+                .parkingLot(parkingLot)
+                .areaNumber(areaNumber)
+                .zoneType("double_lane")
+                .status(status)
+                .build();
     }
 }

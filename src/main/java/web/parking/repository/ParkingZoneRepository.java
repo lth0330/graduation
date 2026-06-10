@@ -17,6 +17,8 @@ public interface ParkingZoneRepository extends JpaRepository<ParkingZoneEntity, 
 
     long countByParkingLot_NoAndStatus(Integer parkingLotNo, String status);
 
+    long countByParkingLot_NoAndZoneTypeAndStatus(Integer parkingLotNo, String zoneType, String status);
+
     void deleteByParkingLot_No(Integer parkingLotNo);
 
     boolean existsByParkingLot_NoAndLayoutRowAndLayoutColumn(Integer parkingLotNo, Integer layoutRow, Integer layoutColumn);

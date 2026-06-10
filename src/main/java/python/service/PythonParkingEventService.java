@@ -86,16 +86,16 @@ public class PythonParkingEventService {
     // FastAPI 차단기 제어용 전체 주차장 점유율을 계산한다.
     public Map<String, Object> findOccupancy() {
         List<ParkingLotEntity> parkingLots = parkingLotRepository.findAll();
-        int total = parkingLots.stream()
-                .map(ParkingLotEntity::getTotalSpaces)
-                .filter(value -> value != null && value > 0)
-                .mapToInt(Integer::intValue)
-                .sum();
-        int used = parkingLots.stream()
-                .map(ParkingLotEntity::getUsedSpaces)
-                .filter(value -> value != null && value > 0)
-                .mapToInt(Integer::intValue)
-                .sum();
+        List<ParkingZoneEntity> normalZones = parkingLots.stream()
+                .filter(parkingLot -> parkingLot.getNo() != null)
+                .flatMap(parkingLot -> parkingZoneRepository.findByParkingLot_No(parkingLot.getNo()).stream())
+                .filter(this::isNormalZone)
+                .toList();
+
+        int total = normalZones.size();
+        int used = (int) normalZones.stream()
+                .filter(zone -> STATUS_OCCUPIED.equals(zone.getStatus()))
+                .count();
         int available = Math.max(total - used, 0);
         double rate = total > 0 ? (double) used / total : 0.0;
 
@@ -333,11 +333,19 @@ public class PythonParkingEventService {
         if (zone == null || zone.getParkingLot() == null || zone.getParkingLot().getNo() == null) {
             return;
         }
-        long occupiedCount = parkingZoneRepository.countByParkingLot_NoAndStatus(
+        long occupiedCount = parkingZoneRepository.countByParkingLot_NoAndZoneTypeAndStatus(
                 zone.getParkingLot().getNo(),
+                ZONE_TYPE_NORMAL,
                 STATUS_OCCUPIED
         );
         zone.getParkingLot().setUsedSpaces((int) Math.min(occupiedCount, Integer.MAX_VALUE));
+    }
+
+    private boolean isNormalZone(ParkingZoneEntity zone) {
+        return zone != null
+                && (zone.getZoneType() == null
+                || zone.getZoneType().isBlank()
+                || ZONE_TYPE_NORMAL.equals(zone.getZoneType()));
     }
 
     private AppParkingUpdateRequestDto buildParkingUpdateRequest(

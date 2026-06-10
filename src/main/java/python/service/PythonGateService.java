@@ -38,6 +38,8 @@ public class PythonGateService {
 
     private static final String HISTORY_PARKED = "PARKED";
     private static final String UNKNOWN_PLATE = "UNKNOWN";
+    private static final String STATUS_OCCUPIED = "occupied";
+    private static final String ZONE_TYPE_NORMAL = "normal";
     private static final double GATE_OCCUPANCY_BLOCK_RATE = 0.8;
     private static final DateTimeFormatter PYTHON_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -400,19 +402,26 @@ public class PythonGateService {
                 ? parkingLotRepository.findByApartment_No(apartment.getNo())
                 : parkingLotRepository.findAll();
 
-        int total = parkingLots.stream()
-                .map(ParkingLotEntity::getTotalSpaces)
-                .filter(value -> value != null && value > 0)
-                .mapToInt(Integer::intValue)
-                .sum();
-        int used = parkingLots.stream()
-                .map(ParkingLotEntity::getUsedSpaces)
-                .filter(value -> value != null && value > 0)
-                .mapToInt(Integer::intValue)
-                .sum();
+        List<ParkingZoneEntity> normalZones = parkingLots.stream()
+                .filter(parkingLot -> parkingLot.getNo() != null)
+                .flatMap(parkingLot -> parkingZoneRepository.findByParkingLot_No(parkingLot.getNo()).stream())
+                .filter(this::isNormalZone)
+                .toList();
+
+        int total = normalZones.size();
+        int used = (int) normalZones.stream()
+                .filter(zone -> STATUS_OCCUPIED.equals(zone.getStatus()))
+                .count();
         int available = Math.max(total - used, 0);
         double rate = total > 0 ? (double) used / total : 0.0;
         return new Occupancy(total, used, available, rate);
+    }
+
+    private boolean isNormalZone(ParkingZoneEntity zone) {
+        return zone != null
+                && (zone.getZoneType() == null
+                || zone.getZoneType().isBlank()
+                || ZONE_TYPE_NORMAL.equals(zone.getZoneType()));
     }
 
     private String buildGateReason(
