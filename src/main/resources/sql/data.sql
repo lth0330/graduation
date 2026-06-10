@@ -5,9 +5,12 @@
 -- 3. 서버 재시작 때 기존 운영 데이터와 주차 상태를 초기값으로 덮어쓰지 않는다.
 -- 4. 모든 아파트 FK(a_no)는 1번 "서초 스마트 아파트"만 참조한다.
 
-INSERT INTO apartments (a_no, a_name, a_pwd, a_address, a_detail_address)
+INSERT INTO apartments (
+    a_no, a_name, a_pwd, a_address, a_detail_address,
+    gate_occupancy_block_enabled, gate_force_open_enabled
+)
 VALUES
-    (1, '서초 스마트 아파트', '1111', '서울시 서초구 반포대로 37', '관리사무소 1층')
+    (1, '서초 스마트 아파트', '1111', '서울시 서초구 반포대로 37', '관리사무소 1층', 1, 0)
 ON DUPLICATE KEY UPDATE
     a_no = a_no;
 
