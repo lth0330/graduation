@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,6 +22,7 @@ public class ParkingSnapshotStorageService {
     private final Path uploadRoot;
     private final S3StorageService s3StorageService;
 
+    @Autowired
     public ParkingSnapshotStorageService(S3StorageService s3StorageService) {
         this(Paths.get(System.getProperty("user.dir"), "uploads"), s3StorageService);
     }
