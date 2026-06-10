@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -22,16 +21,6 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
-    public WebSecurityCustomizer webSecurityCustomizer() {
-        return web -> web.ignoring()
-                // Python/FastAPI 장비가 호출하는 API는 JWT 필터를 거치지 않도록 제외한다.
-                .requestMatchers(path("/api/parking/**"))
-                .requestMatchers(path("/api/gate/**"))
-                .requestMatchers(path("/api/check-plate"))
-                .requestMatchers(path("/api/entry-log"));
-    }
-
-    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 // JWT 기반 API 서버라서 CSRF, Form Login, Basic Auth를 사용하지 않는다.
@@ -45,7 +34,10 @@ public class SecurityConfig {
                         // 브라우저의 CORS 사전 요청은 인증 없이 통과시킨다.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 컨트롤러 예외가 /error로 전달될 때 원래 HTTP 상태 코드가 403으로 덮이지 않게 한다.
+                        .requestMatchers(path("/")).permitAll()
+                        .requestMatchers(path("/health")).permitAll()
                         .requestMatchers(path("/error")).permitAll()
+                        .requestMatchers(path("/favicon.ico")).permitAll()
                         // 로그인/회원가입/공개 조회 API는 토큰 없이 접근 가능하다.
                         .requestMatchers(HttpMethod.POST, "/api/web-admin/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/apartment-managers/login").permitAll()
