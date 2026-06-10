@@ -2,24 +2,21 @@
 -- 목적:
 -- 1. 서버 시작 시 필요한 기본 샘플 데이터를 넣는다.
 -- 2. spring.sql.init.mode=always 상태에서도 중복 PK 오류가 나지 않게 한다.
--- 3. 모든 아파트 FK(a_no)는 1번 "서초 스마트 아파트"만 참조한다.
+-- 3. 서버 재시작 때 기존 운영 데이터와 주차 상태를 초기값으로 덮어쓰지 않는다.
+-- 4. 모든 아파트 FK(a_no)는 1번 "서초 스마트 아파트"만 참조한다.
 
 INSERT INTO apartments (a_no, a_name, a_pwd, a_address, a_detail_address)
 VALUES
     (1, '서초 스마트 아파트', '1111', '서울시 서초구 반포대로 37', '관리사무소 1층')
 ON DUPLICATE KEY UPDATE
-    a_name = VALUES(a_name),
-    a_pwd = VALUES(a_pwd),
-    a_address = VALUES(a_address),
-    a_detail_address = VALUES(a_detail_address);
+    a_no = a_no;
 
 INSERT INTO web_manager (w_no, w_id, w_pwd)
 VALUES
     -- 로그인 확인용 평문 비밀번호: 1234
     (1, 'admin', '$2a$10$a1cFmXtlqoCR.ZCiGRvJaOUXr7gHqWM.tBJg37oKsIABeuPkFoXWy')
 ON DUPLICATE KEY UPDATE
-    w_id = VALUES(w_id),
-    w_pwd = VALUES(w_pwd);
+    w_no = w_no;
 
 INSERT INTO apartment_manager (
     m_no, a_no, m_id, m_pwd, m_email, m_phone, m_address, m_name,
@@ -32,18 +29,7 @@ VALUES
      '김관리', 'sample-manager-1.png', 'APPROVED', NULL,
      '2026-04-27 09:00:00', '2026-04-27 11:30:00')
 ON DUPLICATE KEY UPDATE
-    a_no = VALUES(a_no),
-    m_id = VALUES(m_id),
-    m_pwd = VALUES(m_pwd),
-    m_email = VALUES(m_email),
-    m_phone = VALUES(m_phone),
-    m_address = VALUES(m_address),
-    m_name = VALUES(m_name),
-    picture = VALUES(picture),
-    approval_status = VALUES(approval_status),
-    reject_reason = VALUES(reject_reason),
-    requested_at = VALUES(requested_at),
-    approved_at = VALUES(approved_at);
+    m_no = m_no;
 
 INSERT INTO `user` (
     u_no, u_id, u_pwd, u_name, u_email, u_phone, p_date,
@@ -66,19 +52,7 @@ VALUES
     (7, 'sua', 'user1234', '오수아', 'sua@example.com', '01077778888',
      '2026-05-04 10:05:00', '107', '901', 1, 'REJECTED', '세대 정보 확인 필요', 1, 2)
 ON DUPLICATE KEY UPDATE
-    u_id = VALUES(u_id),
-    u_pwd = VALUES(u_pwd),
-    u_name = VALUES(u_name),
-    u_email = VALUES(u_email),
-    u_phone = VALUES(u_phone),
-    p_date = VALUES(p_date),
-    u_dong = VALUES(u_dong),
-    u_ho = VALUES(u_ho),
-    a_no = VALUES(a_no),
-    approval_status = VALUES(approval_status),
-    reject_reason = VALUES(reject_reason),
-    resident_car_limit = VALUES(resident_car_limit),
-    visitor_car_limit = VALUES(visitor_car_limit);
+    u_no = u_no;
 
 INSERT INTO car (
     c_no, c_name, c_number, c_kind, c_note, c_date, u_no
@@ -94,12 +68,7 @@ VALUES
     (7, '한은우 차량', '11바7788', '투싼', '가입 승인 대기 차량', '2026-05-03 16:40:00', 6),
     (8, '오수아 차량', '22사9900', '모닝', '가입 반려 샘플 차량', '2026-05-04 10:15:00', 7)
 ON DUPLICATE KEY UPDATE
-    c_name = VALUES(c_name),
-    c_number = VALUES(c_number),
-    c_kind = VALUES(c_kind),
-    c_note = VALUES(c_note),
-    c_date = VALUES(c_date),
-    u_no = VALUES(u_no);
+    c_no = c_no;
 
 -- 번호판 인식/차단기 테스트용 추가 승인 입주민.
 -- 기존 샘플 입주민의 세대별 차량 제한을 넘기지 않도록 별도 세대 샘플로 둔다.
@@ -139,31 +108,7 @@ WHERE NOT EXISTS (
 );
 
 -- 요청 샘플 차량 6대 중 5대는 입주민 차량(car), 1대는 방문 차량(registered_cars)으로 등록한다.
--- 기존 샘플 번호가 남지 않도록 samplecar01~05의 차량번호를 요청 번호로 갱신한다.
-UPDATE car c
-JOIN `user` u ON u.u_no = c.u_no
-SET
-    c.c_name = CONCAT(u.u_name, ' 차량'),
-    c.c_number = CASE u.u_id
-        WHEN 'samplecar01' THEN '112보5273'
-        WHEN 'samplecar02' THEN '24조2426'
-        WHEN 'samplecar03' THEN '78호12345'
-        WHEN 'samplecar04' THEN '42바3579'
-        WHEN 'samplecar05' THEN '37나5209'
-        ELSE c.c_number
-    END,
-    c.c_kind = '테스트차량',
-    c.c_note = '차단기 테스트용 입주민 차량',
-    c.c_date = CASE u.u_id
-        WHEN 'samplecar01' THEN '2026-06-04 09:30:00'
-        WHEN 'samplecar02' THEN '2026-06-04 09:35:00'
-        WHEN 'samplecar03' THEN '2026-06-04 09:40:00'
-        WHEN 'samplecar04' THEN '2026-06-04 09:45:00'
-        WHEN 'samplecar05' THEN '2026-06-04 09:50:00'
-        ELSE c.c_date
-    END
-WHERE u.u_id IN ('samplecar01', 'samplecar02', 'samplecar03', 'samplecar04', 'samplecar05');
-
+-- 이미 같은 샘플 사용자에게 차량이 있으면 서버 재시작 때 덮어쓰지 않는다.
 INSERT INTO car (c_name, c_number, c_kind, c_note, c_date, u_no)
 SELECT sample.c_name, sample.c_number, '테스트차량', '차단기 테스트용 입주민 차량', sample.c_date, u.u_no
 FROM (
@@ -191,11 +136,7 @@ VALUES
     (2, 1, '서초 스마트 지상주차장', '1F', 0, 0),
     (3, 1, '서초 스마트 방문주차장', '방문', 0, 0)
 ON DUPLICATE KEY UPDATE
-    a_no = VALUES(a_no),
-    pl_name = VALUES(pl_name),
-    pl_floor = VALUES(pl_floor),
-    total_spaces = VALUES(total_spaces),
-    used_spaces = VALUES(used_spaces);
+    pl_no = pl_no;
 
 INSERT INTO parking_zone (
     pz_no, pl_no, area_number, location, status, zone_type, layout_row, layout_column,
@@ -212,20 +153,7 @@ VALUES
     (8, 1, 'a-b1-008', 'B1 8번 주차칸', 'empty', 'normal', 3, 4, 2, 1, '초기 등록', NULL),
     (9, 1, 'a-b1-009', 'B1 9번 주차칸', 'empty', 'normal', 3, 7, 2, 1, '초기 등록', NULL)
 ON DUPLICATE KEY UPDATE
-    pl_no = VALUES(pl_no),
-    area_number = VALUES(area_number),
-    location = VALUES(location),
-    status = VALUES(status),
-    zone_type = VALUES(zone_type),
-    layout_row = VALUES(layout_row),
-    layout_column = VALUES(layout_column),
-    layout_width = VALUES(layout_width),
-    layout_height = VALUES(layout_height),
-    status_change_reason = VALUES(status_change_reason),
-    current_car_number = VALUES(current_car_number);
-
-DELETE FROM parking_zone WHERE pz_no NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9);
-DELETE FROM parking_lot WHERE pl_no NOT IN (1, 2, 3);
+    pz_no = pz_no;
 
 INSERT INTO registered_cars (
     v_no, u_no, c_number, reg_time, park_time, expire_date
@@ -235,28 +163,10 @@ VALUES
     (1, 2, '22허2026', '2026-05-08 09:00:00', NULL, NULL),
     (2, 2, '33호3030', '2026-05-08 11:10:00', '2026-05-08 12:00:00', '2026-05-09 12:00:00')
 ON DUPLICATE KEY UPDATE
-    u_no = VALUES(u_no),
-    c_number = VALUES(c_number),
-    reg_time = VALUES(reg_time),
-    park_time = VALUES(park_time),
-    expire_date = VALUES(expire_date);
+    v_no = v_no;
 
 -- 요청 샘플 방문 차량 1대.
--- 기존 samplecar01 방문차량이 있으면 번호를 갱신하고, 없으면 새로 등록한다.
-DELETE v
-FROM registered_cars v
-JOIN `user` u ON u.u_no = v.u_no
-WHERE u.u_id = 'samplecar02';
-
-UPDATE registered_cars v
-JOIN `user` u ON u.u_no = v.u_no
-SET
-    v.c_number = '123가4567',
-    v.reg_time = '2026-06-04 10:00:00',
-    v.park_time = NULL,
-    v.expire_date = NULL
-WHERE u.u_id = 'samplecar01';
-
+-- 이미 samplecar01 방문차량이 있으면 서버 재시작 때 덮어쓰지 않는다.
 INSERT INTO registered_cars (u_no, c_number, reg_time, park_time, expire_date)
 SELECT u.u_no, '123가4567', '2026-06-04 10:00:00', NULL, NULL
 FROM `user` u
@@ -273,12 +183,7 @@ VALUES
     (1, 2, 'visitor', '방문 차량 입차 알림', '[33호3030] 방문 차량이 주차장에 들어왔습니다.', 0, '2026-05-08 12:00:00'),
     (2, 2, 'parking', '주차구역 상태 변경', 'a-b1-002 구역이 비어 있음으로 변경되었습니다.', 1, '2026-05-08 13:30:00')
 ON DUPLICATE KEY UPDATE
-    u_no = VALUES(u_no),
-    noti_type = VALUES(noti_type),
-    noti_title = VALUES(noti_title),
-    noti_message = VALUES(noti_message),
-    is_read = VALUES(is_read),
-    created_at = VALUES(created_at);
+    noti_no = noti_no;
 
 INSERT INTO manager_notification (
     notification_no, m_no, a_no, notification_type, title, message,
@@ -292,15 +197,7 @@ VALUES
      '일반 주차칸이 남아 있는 상태에서 통로 주차가 감지되었습니다.',
      'parking_history', NULL, 0, '2026-05-28 09:10:00')
 ON DUPLICATE KEY UPDATE
-    m_no = VALUES(m_no),
-    a_no = VALUES(a_no),
-    notification_type = VALUES(notification_type),
-    title = VALUES(title),
-    message = VALUES(message),
-    reference_type = VALUES(reference_type),
-    reference_id = VALUES(reference_id),
-    is_read = VALUES(is_read),
-    created_at = VALUES(created_at);
+    notification_no = notification_no;
 
 INSERT INTO device_info (
     device_id, u_no, fcm_token, os_type, last_login
@@ -309,10 +206,7 @@ VALUES
     ('device_2', 2, 'sample-fcm-token-2', 'android', '2026-05-08 08:30:00'),
     ('device_3', 3, 'sample-fcm-token-3', 'android', '2026-05-09 08:30:00')
 ON DUPLICATE KEY UPDATE
-    u_no = VALUES(u_no),
-    fcm_token = VALUES(fcm_token),
-    os_type = VALUES(os_type),
-    last_login = VALUES(last_login);
+    device_id = device_id;
 
 INSERT INTO settings (
     setting_no, device_id, alert_push, theme_mode
@@ -321,9 +215,7 @@ VALUES
     (1, 'device_2', 1, 'light'),
     (2, 'device_3', 1, 'dark')
 ON DUPLICATE KEY UPDATE
-    device_id = VALUES(device_id),
-    alert_push = VALUES(alert_push),
-    theme_mode = VALUES(theme_mode);
+    setting_no = setting_no;
 
 INSERT INTO waiting_list (
     wait_no, u_no, target_slot_id, is_notified, created_at
@@ -332,10 +224,7 @@ VALUES
     (1, 2, 'a-b1-001', 0, '2026-05-08 14:10:00'),
     (2, 3, 'ALL', 0, '2026-05-09 18:20:00')
 ON DUPLICATE KEY UPDATE
-    u_no = VALUES(u_no),
-    target_slot_id = VALUES(target_slot_id),
-    is_notified = VALUES(is_notified),
-    created_at = VALUES(created_at);
+    wait_no = wait_no;
 
 INSERT INTO manager_inquiry (
     inquiry_no, m_no, title, category, content, status, answer, created_at, answered_at
@@ -353,14 +242,7 @@ VALUES
      'answered', '입주민 문의 등록 시 관리자 알림 테이블에 저장되도록 처리되어 있습니다.',
      '2026-05-12 09:30:00', '2026-05-12 10:05:00')
 ON DUPLICATE KEY UPDATE
-    m_no = VALUES(m_no),
-    title = VALUES(title),
-    category = VALUES(category),
-    content = VALUES(content),
-    status = VALUES(status),
-    answer = VALUES(answer),
-    created_at = VALUES(created_at),
-    answered_at = VALUES(answered_at);
+    inquiry_no = inquiry_no;
 
 INSERT INTO resident_inquiry (
     inquiry_no, u_no, c_no, title, content, status, answer, created_at, answered_at
@@ -374,11 +256,4 @@ VALUES
     (6, 6, 7, '가입 승인 대기 중 차량 문의', '가입 승인 대기 상태에서도 차량 정보를 미리 등록할 수 있는지 확인 부탁드립니다.', 'pending', NULL, '2026-05-11 13:35:00', NULL),
     (7, 4, NULL, '주차 대기 알림 문의', '주차칸이 비었을 때 대기 신청자에게 알림이 가는지 문의드립니다.', 'answered', '대기 신청 기능과 사용자 알림 테이블을 통해 처리할 수 있습니다.', '2026-05-12 15:00:00', '2026-05-12 15:40:00')
 ON DUPLICATE KEY UPDATE
-    u_no = VALUES(u_no),
-    c_no = VALUES(c_no),
-    title = VALUES(title),
-    content = VALUES(content),
-    status = VALUES(status),
-    answer = VALUES(answer),
-    created_at = VALUES(created_at),
-    answered_at = VALUES(answered_at);
+    inquiry_no = inquiry_no;
