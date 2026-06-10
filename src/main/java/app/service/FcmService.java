@@ -14,6 +14,11 @@ import app.repository.DeviceInfoRepository; // 💡 추가
 import com.google.firebase.messaging.FirebaseMessagingException; // 💡 이 줄이 꼭 있어야 합니다!
 import com.google.firebase.messaging.MessagingErrorCode;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 
 //123
 @Service
@@ -25,10 +30,8 @@ public class FcmService {
     @PostConstruct
     public void init() {
         try {
-            // 자바 프로젝트의 src/main/resources 폴더 안에 firebase-key.json을 넣어주세요!
-            ClassPathResource resource = new ClassPathResource("firebase-key.json");
             FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(resource.getInputStream()))
+                    .setCredentials(GoogleCredentials.fromStream(getFirebaseCredentialStream()))
                     .build();
             if (FirebaseApp.getApps().isEmpty()) {
                 FirebaseApp.initializeApp(options);
@@ -36,6 +39,23 @@ public class FcmService {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private InputStream getFirebaseCredentialStream() throws Exception {
+        String credentialsBase64 = System.getenv("FIREBASE_CREDENTIALS_BASE64");
+        if (credentialsBase64 != null && !credentialsBase64.isBlank()) {
+            byte[] decoded = Base64.getDecoder().decode(credentialsBase64);
+            return new ByteArrayInputStream(decoded);
+        }
+
+        String credentialsJson = System.getenv("FIREBASE_CREDENTIALS_JSON");
+        if (credentialsJson != null && !credentialsJson.isBlank()) {
+            return new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 로컬 개발 기본값: src/main/resources/firebase-key.json 파일을 사용합니다.
+        ClassPathResource resource = new ClassPathResource("firebase-key.json");
+        return resource.getInputStream();
     }
 
     public void sendPush(String token, String title, String body) {
