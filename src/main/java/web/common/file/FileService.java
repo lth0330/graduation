@@ -15,6 +15,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class FileService {
 
     private final Path uploadDir = Paths.get(System.getProperty("user.dir"), "uploads", "career-images");
+    private final S3StorageService s3StorageService;
+
+    public FileService(S3StorageService s3StorageService) {
+        this.s3StorageService = s3StorageService;
+    }
 
     public String saveFile(MultipartFile file) {
         // Create: 업로드된 파일을 고유 파일명으로 저장한다.
@@ -25,6 +30,10 @@ public class FileService {
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "only image files can be uploaded.");
+        }
+
+        if (s3StorageService.isEnabled()) {
+            return s3StorageService.uploadMultipartFile(file, "career-images");
         }
 
         try {

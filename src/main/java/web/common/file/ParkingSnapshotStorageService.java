@@ -19,13 +19,19 @@ public class ParkingSnapshotStorageService {
     private static final DateTimeFormatter FILE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     private final Path uploadRoot;
+    private final S3StorageService s3StorageService;
 
-    public ParkingSnapshotStorageService() {
-        this(Paths.get(System.getProperty("user.dir"), "uploads"));
+    public ParkingSnapshotStorageService(S3StorageService s3StorageService) {
+        this(Paths.get(System.getProperty("user.dir"), "uploads"), s3StorageService);
     }
 
     ParkingSnapshotStorageService(Path uploadRoot) {
+        this(uploadRoot, null);
+    }
+
+    ParkingSnapshotStorageService(Path uploadRoot, S3StorageService s3StorageService) {
         this.uploadRoot = uploadRoot;
+        this.s3StorageService = s3StorageService;
     }
 
     public String saveBase64Image(String imageBase64) {
@@ -41,12 +47,22 @@ public class ParkingSnapshotStorageService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "스냅샷 이미지 base64 형식이 올바르지 않습니다.");
         }
 
-        Path snapshotDir = uploadRoot.resolve("parking-snapshots");
         String fileName = "parking-snapshot-"
                 + LocalDateTime.now().format(FILE_TIME_FORMAT)
                 + "-"
                 + UUID.randomUUID()
                 + parsedImage.extension();
+
+        if (s3StorageService != null && s3StorageService.isEnabled()) {
+            return s3StorageService.uploadBytes(
+                    imageBytes,
+                    parsedImage.contentType(),
+                    "parking-snapshots",
+                    fileName
+            );
+        }
+
+        Path snapshotDir = uploadRoot.resolve("parking-snapshots");
 
         try {
             Files.createDirectories(snapshotDir);
@@ -60,7 +76,7 @@ public class ParkingSnapshotStorageService {
 
     private ParsedImage parseImage(String rawBase64) {
         if (!rawBase64.startsWith("data:")) {
-            return new ParsedImage(rawBase64, ".jpg");
+            return new ParsedImage(rawBase64, ".jpg", "image/jpeg");
         }
 
         int commaIndex = rawBase64.indexOf(',');
@@ -69,10 +85,12 @@ public class ParkingSnapshotStorageService {
         }
 
         String header = rawBase64.substring(0, commaIndex).toLowerCase();
-        String extension = header.contains("image/png") ? ".png" : ".jpg";
-        return new ParsedImage(rawBase64.substring(commaIndex + 1), extension);
+        if (header.contains("image/png")) {
+            return new ParsedImage(rawBase64.substring(commaIndex + 1), ".png", "image/png");
+        }
+        return new ParsedImage(rawBase64.substring(commaIndex + 1), ".jpg", "image/jpeg");
     }
 
-    private record ParsedImage(String base64Body, String extension) {
+    private record ParsedImage(String base64Body, String extension, String contentType) {
     }
 }
