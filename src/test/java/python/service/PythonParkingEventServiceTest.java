@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import python.dto.PythonParkingEntryRequestDto;
 import python.dto.PythonParkingPlateUpdateRequestDto;
+import python.service.PlateCorrectionReviewService;
 import web.common.file.ParkingSnapshotStorageService;
 import web.notification.service.ManagerNotificationService;
 import web.parking.entity.ParkingHistoryEntity;
@@ -202,6 +203,52 @@ class PythonParkingEventServiceTest {
     }
 
     @Test
+    void saveEntryRecordsPlateCorrectionReviewWhenPythonMarksNeedsReview() {
+        ServiceFixture fixture = new ServiceFixture();
+        ParkingLotEntity parkingLot = ParkingLotEntity.builder()
+                .no(1)
+                .usedSpaces(0)
+                .apartment(web.aptManager.entity.ApartmentEntity.builder().no(1).name("테스트아파트").build())
+                .build();
+        ParkingZoneEntity zone = ParkingZoneEntity.builder()
+                .no(1)
+                .areaNumber("a-b1-001")
+                .status("empty")
+                .zoneType("normal")
+                .parkingLot(parkingLot)
+                .build();
+        when(fixture.parkingZoneRepository.findByAreaNumber("a-b1-001")).thenReturn(Optional.of(zone));
+        when(fixture.parkingHistoryRepository.save(any(ParkingHistoryEntity.class)))
+                .thenAnswer(invocation -> {
+                    ParkingHistoryEntity history = invocation.getArgument(0);
+                    history.setId(11);
+                    fixture.savedHistory = history;
+                    return history;
+                });
+
+        PythonParkingEntryRequestDto requestDto = new PythonParkingEntryRequestDto();
+        requestDto.setZone("a-b1-001");
+        requestDto.setPlate(null);
+        requestDto.setOcrPlate("12가1235");
+        requestDto.setMatchedPlate(null);
+        requestDto.setCandidateList(List.of("12가1234", "12가1236"));
+        requestDto.setDistance(1);
+        requestDto.setNeedsReview(true);
+
+        fixture.service.saveEntry(requestDto);
+
+        verify(fixture.plateCorrectionReviewService).recordNeedsReview(
+                parkingLot.getApartment(),
+                fixture.savedHistory,
+                "a-b1-001",
+                "12가1235",
+                null,
+                List.of("12가1234", "12가1236"),
+                1
+        );
+    }
+
+    @Test
     void saveExitClearsLinkedZoneAndSynchronizesParkingLotUsedSpaces() {
         ServiceFixture fixture = new ServiceFixture();
         ParkingLotEntity parkingLot = ParkingLotEntity.builder()
@@ -345,6 +392,8 @@ class PythonParkingEventServiceTest {
         private final ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);
         private final AppResidentFeatureService appResidentFeatureService = mock(AppResidentFeatureService.class);
         private final ParkingSnapshotStorageService snapshotStorageService = mock(ParkingSnapshotStorageService.class);
+        private final PlateCorrectionReviewService plateCorrectionReviewService = mock(PlateCorrectionReviewService.class);
+        private ParkingHistoryEntity savedHistory;
 
         private final PythonParkingEventService service = new PythonParkingEventService(
                 parkingZoneRepository,
@@ -354,7 +403,8 @@ class PythonParkingEventServiceTest {
                 registeredCarRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                snapshotStorageService
+                snapshotStorageService,
+                plateCorrectionReviewService
         );
     }
 

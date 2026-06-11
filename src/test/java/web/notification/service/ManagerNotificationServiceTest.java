@@ -1,10 +1,12 @@
 package web.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,55 @@ import web.parking.entity.ParkingZoneEntity;
 import web.parking.repository.ParkingHistoryRepository;
 
 class ManagerNotificationServiceTest {
+
+    @Test
+    void createApartmentNotificationReusesUnreadNotificationForSameReference() {
+        ManagerNotificationRepository managerNotificationRepository = mock(ManagerNotificationRepository.class);
+        ApartmentManagerRepository apartmentManagerRepository = mock(ApartmentManagerRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        ApartmentEntity apartment = ApartmentEntity.builder().no(1).name("테스트아파트").build();
+        ManagerNotificationEntity existingNotification = ManagerNotificationEntity.builder()
+                .no(20)
+                .apartment(apartment)
+                .type("ocr_error")
+                .title("번호판 인식 실패")
+                .message("기존 메시지")
+                .referenceType("parking_history")
+                .referenceId(11)
+                .read(false)
+                .build();
+
+        when(managerNotificationRepository.findByApartment_NoAndTypeAndReferenceTypeAndReferenceIdAndReadFalse(
+                1,
+                "ocr_error",
+                "parking_history",
+                11
+        )).thenReturn(List.of(existingNotification));
+
+        ManagerNotificationService service = new ManagerNotificationService(
+                managerNotificationRepository,
+                apartmentManagerRepository,
+                parkingHistoryRepository
+        );
+
+        ManagerNotificationEntity result = service.createApartmentNotification(
+                apartment,
+                "ocr_error",
+                "번호판 인식 실패",
+                "A1 구역 번호판 인식 실패. 관리자 확인 필요.",
+                "parking_history",
+                11
+        );
+
+        assertThat(result).isSameAs(existingNotification);
+        assertThat(existingNotification.getMessage()).isEqualTo("A1 구역 번호판 인식 실패. 관리자 확인 필요.");
+        verify(managerNotificationRepository).findByApartment_NoAndTypeAndReferenceTypeAndReferenceIdAndReadFalse(
+                1,
+                "ocr_error",
+                "parking_history",
+                11
+        );
+    }
 
     @Test
     void findMyNotificationIncludesReferencedParkingHistory() {

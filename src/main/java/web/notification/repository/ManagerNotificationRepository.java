@@ -27,4 +27,11 @@ public interface ManagerNotificationRepository extends JpaRepository<ManagerNoti
             String referenceType,
             Integer referenceId
     );
+
+    List<ManagerNotificationEntity> findByApartment_NoAndTypeAndReferenceTypeAndReferenceIdAndReadFalse(
+            Integer apartmentNo,
+            String type,
+            String referenceType,
+            Integer referenceId
+    );
 }

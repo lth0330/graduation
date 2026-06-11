@@ -228,9 +228,13 @@ public class PythonGateService {
         }
 
         boolean ocrError = "ocr_error".equalsIgnoreCase(normalizedType);
-        String title = ocrError ? "번호판 인식 실패" : "차단기 이상 알림";
+        boolean assignFail = "assign_fail".equalsIgnoreCase(normalizedType);
+        String title = buildAlertTitle(ocrError, assignFail);
         String message = buildGateAlertMessage(ocrError, zoneName, eventTime, plate, candidates, imagePath);
-        String referenceType = ocrError ? "parking_history" : "gate_alert";
+        String referenceType = ocrError && historyId != null ? "parking_history" : "gate_alert";
+        Integer referenceId = ocrError && historyId != null
+                ? historyId
+                : stableAlertReferenceId(normalizedType, zoneName, candidates, plate);
 
         ManagerNotificationEntity notification = managerNotificationService.createApartmentNotification(
                 apartment,
@@ -238,7 +242,7 @@ public class PythonGateService {
                 title,
                 message,
                 referenceType,
-                historyId
+                referenceId
         );
 // =========================================================
         // 👇 [새로 추가된 코드] 구역이 '통로'이고 파이썬이 보내준 후보자(candidates)가 있다면 의심 알림!
@@ -469,12 +473,14 @@ public class PythonGateService {
         StringBuilder message = new StringBuilder();
         if (ocrError) {
             if (zoneName != null) {
-                message.append(zoneName).append(" 구역에서 번호판을 인식하지 못했습니다.");
+                message.append(zoneName).append(" 구역 번호판 인식 실패. 관리자 확인 필요.");
             } else {
-                message.append("주차 구역에서 번호판을 인식하지 못했습니다.");
+                message.append("주차 구역 번호판 인식 실패. 관리자 확인 필요.");
             }
+        } else if (candidates != null && !candidates.isBlank()) {
+            message.append("후보 차량 [").append(candidates).append("] 중 자동 연결할 주차 기록을 확정하지 못했습니다.");
         } else {
-            message.append("Python 차단기에서 이상 알림을 전송했습니다.");
+            message.append("차단기 또는 주차 인식 결과 확인이 필요합니다.");
         }
         if (!ocrError && zoneName != null) {
             message.append(" 구역: ").append(zoneName).append(".");
@@ -492,6 +498,27 @@ public class PythonGateService {
             message.append(" 이미지: ").append(imagePath);
         }
         return limitText(message.toString(), 255);
+    }
+
+    private String buildAlertTitle(boolean ocrError, boolean assignFail) {
+        if (ocrError) {
+            return "번호판 인식 실패";
+        }
+        if (assignFail) {
+            return "번호판 자동 연결 실패";
+        }
+        return "주차 인식 확인 필요";
+    }
+
+    private Integer stableAlertReferenceId(String type, String zoneName, String candidates, String plate) {
+        String key = String.join(
+                "|",
+                type != null ? type : "",
+                zoneName != null ? zoneName : "",
+                candidates != null ? candidates : "",
+                plate != null ? plate : ""
+        );
+        return Math.abs(key.hashCode());
     }
 
     private String limitText(String text, int maxLength) {
