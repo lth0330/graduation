@@ -428,6 +428,10 @@ public class AppResidentFeatureService {
     // =========================================================
     @Transactional
     public void sendPushToResident(Integer residentNo, String title, String body) {
+        if (hasUnreadDuplicateNotification(residentNo, title, body)) {
+            return;
+        }
+
         // 1. [알림 보관함 저장] 푸시 설정이 꺼져 있어도 앱 내 알림 내역에는 무조건 저장합니다.
         residentRepository.findById(residentNo).ifPresent(resident -> {
             notificationRepository.save(AppNotificationEntity.builder()
@@ -449,6 +453,17 @@ public class AppResidentFeatureService {
                 fcmService.sendPush(device.getFcmToken(), title, body);
             });
         }
+    }
+
+    private boolean hasUnreadDuplicateNotification(Integer residentNo, String title, String body) {
+        return notificationRepository.findByResident_NoOrderByCreatedAtDesc(residentNo)
+                .stream()
+                .anyMatch(notification ->
+                        "parking".equals(notification.getType())
+                                && title.equals(notification.getTitle())
+                                && body.equals(notification.getMessage())
+                                && !Boolean.TRUE.equals(notification.getRead())
+                );
     }
     // 👇 파일 맨 밑의 마지막 괄호(}) 바로 위에 이 함수를 통째로 추가하세요!
     @PreDestroy
