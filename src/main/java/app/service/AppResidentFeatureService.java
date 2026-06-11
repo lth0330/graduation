@@ -133,7 +133,20 @@ public class AppResidentFeatureService {
         notification.setRead(true);
         return success();
     }
+    // =========================================================
+    // 👇 [추가] 알림 보관함에서 알림을 완전히 삭제하는 함수
+    // =========================================================
+    @Transactional
+    public Map<String, Object> deleteNotification(Integer residentNo, Integer notificationNo) {
+        // 1. 내 알림이 맞는지 확인하고 가져옵니다.
+        AppNotificationEntity notification = notificationRepository.findById(notificationNo)
+                .filter(item -> item.getResident().getNo().equals(residentNo))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found."));
 
+        // 2. DB에서 해당 알림을 삭제합니다.
+        notificationRepository.delete(notification);
+        return success();
+    }
     @Transactional
     public Map<String, Object> saveDeviceToken(Integer residentNo, AppDeviceTokenRequestDto requestDto) {
         if (requestDto == null || isBlank(requestDto.getFcmToken())) {
@@ -319,22 +332,29 @@ public class AppResidentFeatureService {
                         }, 3, TimeUnit.MINUTES); // 👈 (여기를 1로 바꾸면 1분 타이머가 됩니다)
                     }
                 }
-                // =========================================================
-                // 💡 [주차 완료 시] 차를 대면 'occupied'로 덮어씌워지며 예약이 자동으로 종료됨
-                // =========================================================
+// =========================================================
+// 💡 [주차 완료 시] 차를 대면 'occupied'로 덮어씌워지며 예약이 자동으로 종료됨
+// =========================================================
                 else if ((update.getStatus().equals("occupied") || update.getStatus().equals("사용중")) && zone.getCurrentCarNumber() != null) {
-                    residentVehicleRepository.findByNumber(zone.getCurrentCarNumber()).ifPresent(car -> {
-                        String msg = "[" + update.getSlot() + "] 구역에 차량(" + car.getNumber() + ") 주차가 완료되었습니다.";
-                        notificationRepository.save(AppNotificationEntity.builder()
-                                .resident(car.getResident()).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
 
-                        boolean isPushOn2 = settingRepository.findByDeviceId("device_" + car.getResident().getNo())
-                                .map(AppSettingEntity::getAlertPush).orElse(true);
-                        if (isPushOn2) {
-                            deviceInfoRepository.findByResident_No(car.getResident().getNo())
-                                    .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
-                        }
-                    });
+                    // 👇 [수정됨] 카메라가 보낸 번호와 DB 번호의 모든 공백을 제거하고 대조합니다!
+                    String targetPlate = zone.getCurrentCarNumber().replaceAll("\\s+", "");
+
+                    residentVehicleRepository.findAll().stream()
+                            .filter(v -> v.getNumber().replaceAll("\\s+", "").equals(targetPlate))
+                            .findFirst()
+                            .ifPresent(car -> {
+                                String msg = "[" + update.getSlot() + "] 구역에 차량(" + car.getNumber() + ") 주차가 완료되었습니다.";
+                                notificationRepository.save(AppNotificationEntity.builder()
+                                        .resident(car.getResident()).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
+
+                                boolean isPushOn2 = settingRepository.findByDeviceId("device_" + car.getResident().getNo())
+                                        .map(AppSettingEntity::getAlertPush).orElse(true);
+                                if (isPushOn2) {
+                                    deviceInfoRepository.findByResident_No(car.getResident().getNo())
+                                            .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
+                                }
+                            });
                 }
             });
         }

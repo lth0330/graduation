@@ -14,6 +14,9 @@ import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
 import web.resident.repository.ResidentRepository;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+
 
 @Service
 @RequiredArgsConstructor
@@ -57,7 +60,8 @@ public class AppVehicleService {
             RegisteredCarEntity visitorCar = RegisteredCarEntity.builder()
                     .resident(resident)
                     .number(carNumber)
-                    .build(); // 👈 여기서 비로소 세미콜론(;)으로 문장 마무리!
+                    .expiresAt(ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusHours(24).toLocalDateTime())
+                    .build();
             registeredCarRepository.save(visitorCar);
             return success();
         }

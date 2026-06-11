@@ -9,7 +9,7 @@ public interface RegisteredCarRepository extends JpaRepository<RegisteredCarEnti
 
     // 👇 [해결 1] 지금 오류가 난 바로 그 메서드입니다! 추가해주세요.
     Optional<RegisteredCarEntity> findFirstByNumber(String number);
-    
+
     List<RegisteredCarEntity> findByResident_No(Integer residentNo);
 
     List<RegisteredCarEntity> findByResident_Apartment_No(Integer apartmentNo);

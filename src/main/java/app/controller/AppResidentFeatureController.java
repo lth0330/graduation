@@ -64,7 +64,17 @@ public class AppResidentFeatureController {
     ) {
         return ResponseEntity.ok(appResidentFeatureService.readNotification(getUserNo(authentication), notificationNo));
     }
-
+    // =========================================================
+    // 👇 [추가] 플러터 스와이프 삭제(DELETE) 요청을 받는 API 주소
+    // =========================================================
+    @DeleteMapping("/api/notifications/{notificationNo}")
+    // Delete: 선택한 알림을 알림 보관함(DB)에서 완전히 삭제한다.
+    public ResponseEntity<Map<String, Object>> deleteNotification(
+            Authentication authentication,
+            @PathVariable Integer notificationNo
+    ) {
+        return ResponseEntity.ok(appResidentFeatureService.deleteNotification(getUserNo(authentication), notificationNo));
+    }
     @PostMapping("/api/device-token")
     // Create/Update: 앱 푸시 알림용 FCM 토큰을 저장하거나 갱신한다.
     public ResponseEntity<Map<String, Object>> saveDeviceToken(

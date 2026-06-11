@@ -28,8 +28,9 @@ import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.notification.entity.ManagerNotificationEntity;
 import web.notification.service.ManagerNotificationService;
-import app.service.AppResidentFeatureService; // 👈 이 줄을 import 모음에 추가하세요!
-
+import app.service.AppResidentFeatureService;
+import app.repository.AppNotificationRepository;
+import app.entity.AppNotificationEntity;
 
 @Service
 @RequiredArgsConstructor
@@ -51,8 +52,9 @@ public class PythonGateService {
     private final ParkingZoneRepository parkingZoneRepository;
     private final ApartmentRepository apartmentRepository;
     private final ManagerNotificationService managerNotificationService;
-    private final AppResidentFeatureService appResidentFeatureService; // 👈 추가!
-    // 주민 차량과 방문 차량 테이블을 모두 확인하고 관리자 차단 정책까지 반영해 차단기 개방 여부를 만든다.
+    private final AppResidentFeatureService appResidentFeatureService;
+    private final AppNotificationRepository appNotificationRepository;
+
     @Transactional
     public Map<String, Object> checkPlate(String plate, Integer apartmentNo) {
         String normalizedPlate = normalizePlate(plate);
@@ -74,7 +76,6 @@ public class PythonGateService {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("apartment_no", apartment != null ? apartment.getNo() : null);
         response.put("plate", normalizedPlate);
-        // 기존 Python 코드 호환용: 현재는 주민/방문 등록 차량이면 true로 사용한다.
         response.put("is_resident", isRegistered);
         response.put("is_registered", isRegistered);
         response.put("is_resident_vehicle", isResidentVehicle);
@@ -87,14 +88,8 @@ public class PythonGateService {
         response.put("available", occupancy.available());
         response.put("rate", occupancy.rate());
         response.put("reason", buildGateReason(
-                isRegistered,
-                isResidentVehicle,
-                isVisitorVehicle,
-                gateOpen,
-                occupancyBlockEnabled,
-                forceOpenEnabled,
-                full,
-                overThreshold
+                isRegistered, isResidentVehicle, isVisitorVehicle, gateOpen,
+                occupancyBlockEnabled, forceOpenEnabled, full, overThreshold
         ));
         sendGateEntryNotificationIfNeeded(residentVehicle, gateOpen);
         return response;
@@ -116,7 +111,6 @@ public class PythonGateService {
     }
 
     @Transactional
-    // 차단기 통과 기록을 gate_entry_log 테이블에 저장한다.
     public Map<String, Object> saveGateLog(Map<String, Object> request) {
         String plate = normalizePlate(firstText(request, "gate_plate", "c_number", "plate"));
         if (plate == null) {
@@ -174,7 +168,6 @@ public class PythonGateService {
     }
 
     @Transactional
-    // 차단기에서 확인한 번호판을 기존 주차 이력과 주차칸 상태에 반영한다.
     public Map<String, Object> assignPlate(Map<String, Object> request) {
         Integer historyId = firstInteger(request, "history_id");
         String plate = normalizePlate(firstText(request, "plate", "c_number", "gate_plate"));
@@ -199,14 +192,33 @@ public class PythonGateService {
             zone.setStatusChangeReason("차단기 인식 번호판 자동 매칭");
 
             // =========================================================
-            // 👇 [새로 추가된 코드] 매칭된 구역이 '통로'인 경우 100% 확정 알림!
+            // 💡 1. 구역별 알림 지능형 분기 처리
             // =========================================================
             if (zone.getAreaNumber().contains("통로") || zone.getAreaNumber().matches(".*a-b1-00[789].*")) {
+                // [이중주차 구역인 경우]
                 if (history.getResidentVehicle() != null && history.getResidentVehicle().getResident() != null) {
+                    Integer residentNo = history.getResidentVehicle().getResident().getNo();
+                    ApartmentEntity apartment = zone.getParkingLot() != null ? zone.getParkingLot().getApartment() : null;
+
+                    Occupancy occupancy = calculateOccupancy(apartment);
+                    if (occupancy.available() > 0) { // 만차가 아닐 때만 경고
+                        if (!isNotificationInCooldown(residentNo, "이중주차")) { // 1분 쿨타임 통과 시만
+                            appResidentFeatureService.sendPushToResident(
+                                    residentNo,
+                                    "🚨 이중주차 알림",
+                                    "[" + zone.getAreaNumber() + "] 구역에 이중주차가 확인되었습니다. 이동 주차 바랍니다."
+                            );
+                        }
+                    }
+                }
+            } else {
+                // [일반 정상 주차 구역인 경우]
+                if (history.getResidentVehicle() != null && history.getResidentVehicle().getResident() != null) {
+                    Integer residentNo = history.getResidentVehicle().getResident().getNo();
                     appResidentFeatureService.sendPushToResident(
-                            history.getResidentVehicle().getResident().getNo(),
-                            "🚨 이중주차 알림",
-                            "[" + zone.getAreaNumber() + "] 구역에 이중주차가 확인되었습니다. 이동 주차 바랍니다."
+                            residentNo,
+                            "🅿️ 주차 완료 알림",
+                            "[" + zone.getAreaNumber() + "] 구역에 주차가 완료되었습니다."
                     );
                 }
             }
@@ -222,7 +234,6 @@ public class PythonGateService {
     }
 
     @Transactional
-    // Python에서 보낸 OCR 실패/이상 알림을 관리자 웹 알림으로 저장한다.
     public Map<String, Object> saveDoubleParkingAlert(Map<String, Object> request) {
         String alertType = firstText(request, "type", "alert_type");
         String normalizedType = limitText(alertType != null ? alertType.trim() : "gate_alert", 30);
@@ -249,33 +260,35 @@ public class PythonGateService {
                 : stableAlertReferenceId(normalizedType, zoneName, candidates, plate);
 
         ManagerNotificationEntity notification = managerNotificationService.createApartmentNotification(
-                apartment,
-                normalizedType,
-                title,
-                message,
-                referenceType,
-                referenceId
+                apartment, normalizedType, title, message, referenceType, referenceId
         );
-// =========================================================
-        // 👇 [새로 추가된 코드] 구역이 '통로'이고 파이썬이 보내준 후보자(candidates)가 있다면 의심 알림!
+
+        // =========================================================
+        // 💡 2. 의심 알림 제어 로직
         // =========================================================
         if (zoneName != null && (zoneName.contains("통로") || zoneName.matches(".*a-b1-00[789].*"))) {
             if (candidates != null && !candidates.isEmpty() && !ocrError) {
-                // 파이썬이 "12가1234,34나5678" 처럼 쉼표로 보낸 용의자 번호판들을 분리합니다.
-                String[] candidatePlates = candidates.split(",");
-                for (String cp : candidatePlates) {
-                    ResidentVehicleEntity rv = findResidentVehicle(cp.trim());
-                    if (rv != null && rv.getResident() != null) {
-                        appResidentFeatureService.sendPushToResident(
-                                rv.getResident().getNo(),
-                                "🚨 이중주차 의심 알림",
-                                "[" + zoneName + "] 구역 이중주차 차량으로 의심됩니다. 본인 차량일 경우 이동 주차 바랍니다."
-                        );
+                Occupancy occupancy = calculateOccupancy(apartment);
+                if (occupancy.available() > 0) { // 만차가 아닐 때만
+                    String[] candidatePlates = candidates.split(",");
+                    for (String cp : candidatePlates) {
+                        ResidentVehicleEntity rv = findResidentVehicle(cp.trim());
+                        if (rv != null && rv.getResident() != null) {
+                            Integer residentNo = rv.getResident().getNo();
+                            if (!isNotificationInCooldown(residentNo, "이중주차")) { // 1분 쿨타임 통과 시만
+                                appResidentFeatureService.sendPushToResident(
+                                        residentNo,
+                                        "🚨 이중주차 의심 알림",
+                                        "[" + zoneName + "] 구역 이중주차 차량으로 의심됩니다. 본인 차량일 경우 이동 주차 바랍니다."
+                                );
+                            }
+                        }
                     }
                 }
             }
         }
         // =========================================================
+
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("result", "ok");
         response.put("saved", notification != null);
@@ -291,55 +304,55 @@ public class PythonGateService {
         return response;
     }
 
+    // =========================================================
+    // 💡 3. 알림 도배 방지 쿨타임 체크 (1분)
+    // =========================================================
+    private boolean isNotificationInCooldown(Integer residentNo, String titleKeyword) {
+        List<AppNotificationEntity> userNotifications = appNotificationRepository.findByResident_NoOrderByCreatedAtDesc(residentNo);
+        if (userNotifications.isEmpty()) {
+            return false;
+        }
+
+        for (AppNotificationEntity noti : userNotifications) {
+            if (noti.getTitle() != null && noti.getTitle().contains(titleKeyword)) {
+                LocalDateTime oneMinuteAgo = LocalDateTime.now().minusMinutes(1);
+                if (noti.getCreatedAt() != null && noti.getCreatedAt().isAfter(oneMinuteAgo)) {
+                    System.out.println("DEBUG: [입주민 번호 " + residentNo + "] " + titleKeyword + " 알림 쿨타임 작동 중 - 푸시 생략");
+                    return true;
+                }
+                break;
+            }
+        }
+        return false;
+    }
+
     private ApartmentEntity findAlertApartment(Integer apartmentNo, Integer historyId, String zoneName) {
-        if (apartmentNo != null) {
-            return apartmentRepository.findById(apartmentNo).orElse(null);
-        }
-        if (historyId != null) {
-            return parkingHistoryRepository.findById(historyId)
-                    .map(ParkingHistoryEntity::getParkingZone)
-                    .map(ParkingZoneEntity::getParkingLot)
-                    .map(ParkingLotEntity::getApartment)
-                    .orElse(null);
-        }
-        if (zoneName != null) {
-            return parkingZoneRepository.findByAreaNumber(zoneName)
-                    .map(ParkingZoneEntity::getParkingLot)
-                    .map(ParkingLotEntity::getApartment)
-                    .orElse(null);
-        }
+        if (apartmentNo != null) return apartmentRepository.findById(apartmentNo).orElse(null);
+        if (historyId != null) return parkingHistoryRepository.findById(historyId)
+                .map(ParkingHistoryEntity::getParkingZone).map(ParkingZoneEntity::getParkingLot).map(ParkingLotEntity::getApartment).orElse(null);
+        if (zoneName != null) return parkingZoneRepository.findByAreaNumber(zoneName)
+                .map(ParkingZoneEntity::getParkingLot).map(ParkingLotEntity::getApartment).orElse(null);
         return findGateApartment(null, null, null);
     }
 
     private String normalizePlate(String plate) {
-        if (plate == null || plate.isBlank()) {
-            return null;
-        }
+        if (plate == null || plate.isBlank()) return null;
         String compactPlate = compact(plate);
         return compactPlate.isBlank() ? null : compactPlate;
     }
 
     private boolean existsByCompactPlate(String plate) {
         String compactPlate = compact(plate);
-        return residentVehicleRepository.findAll()
-                .stream()
-                .anyMatch(vehicle -> compact(vehicle.getNumber()).equals(compactPlate))
-                || registeredCarRepository.findAll()
-                .stream()
-                .anyMatch(vehicle -> compact(vehicle.getNumber()).equals(compactPlate));
+        return residentVehicleRepository.findAll().stream().anyMatch(v -> compact(v.getNumber()).equals(compactPlate))
+                || registeredCarRepository.findAll().stream().anyMatch(v -> compact(v.getNumber()).equals(compactPlate));
     }
 
     private String compact(String plate) {
-        if (plate == null) {
-            return "";
-        }
-        return plate.replaceAll("\\s+", "");
+        return plate == null ? "" : plate.replaceAll("\\s+", "");
     }
 
     private LocalDateTime parseDateTime(String value) {
-        if (value == null || value.isBlank()) {
-            return LocalDateTime.now();
-        }
+        if (value == null || value.isBlank()) return LocalDateTime.now();
         try {
             return LocalDateTime.parse(value, PYTHON_DATE_TIME);
         } catch (DateTimeParseException ignored) {
@@ -348,69 +361,37 @@ public class PythonGateService {
     }
 
     private ResidentVehicleEntity findResidentVehicle(String plate) {
-        return residentVehicleRepository.findByNumber(plate)
-                .orElseGet(() -> residentVehicleRepository.findAll()
-                        .stream()
-                        .filter(vehicle -> compact(vehicle.getNumber()).equals(compact(plate)))
-                        .findFirst()
-                        .orElse(null));
+        return residentVehicleRepository.findByNumber(plate).orElseGet(() -> residentVehicleRepository.findAll()
+                .stream().filter(v -> compact(v.getNumber()).equals(compact(plate))).findFirst().orElse(null));
     }
 
     private RegisteredCarEntity findVisitorVehicle(String plate) {
-        if (plate == null) {
-            return null;
-        }
-        return registeredCarRepository.findFirstByNumber(plate)
-                .orElseGet(() -> registeredCarRepository.findAll()
-                        .stream()
-                        .filter(vehicle -> compact(vehicle.getNumber()).equals(compact(plate)))
-                        .findFirst()
-                        .orElse(null));
+        if (plate == null) return null;
+        return registeredCarRepository.findFirstByNumber(plate).orElseGet(() -> registeredCarRepository.findAll()
+                .stream().filter(v -> compact(v.getNumber()).equals(compact(plate))).findFirst().orElse(null));
     }
 
-    private ApartmentEntity findGateApartment(
-            Integer apartmentNo,
-            ResidentVehicleEntity residentVehicle,
-            RegisteredCarEntity visitorVehicle
-    ) {
-        if (apartmentNo != null) {
-            return apartmentRepository.findById(apartmentNo).orElse(null);
-        }
-        if (residentVehicle != null && residentVehicle.getResident() != null) {
-            return residentVehicle.getResident().getApartment();
-        }
-        if (visitorVehicle != null && visitorVehicle.getResident() != null) {
-            return visitorVehicle.getResident().getApartment();
-        }
+    private ApartmentEntity findGateApartment(Integer apartmentNo, ResidentVehicleEntity residentVehicle, RegisteredCarEntity visitorVehicle) {
+        if (apartmentNo != null) return apartmentRepository.findById(apartmentNo).orElse(null);
+        if (residentVehicle != null && residentVehicle.getResident() != null) return residentVehicle.getResident().getApartment();
+        if (visitorVehicle != null && visitorVehicle.getResident() != null) return visitorVehicle.getResident().getApartment();
         List<ApartmentEntity> apartments = apartmentRepository.findAll();
         return apartments.size() == 1 ? apartments.get(0) : null;
     }
 
     private boolean isOccupancyBlockEnabled(ApartmentEntity apartment) {
-        return apartment == null
-                || apartment.getGateOccupancyBlockEnabled() == null
-                || apartment.getGateOccupancyBlockEnabled();
+        return apartment == null || apartment.getGateOccupancyBlockEnabled() == null || apartment.getGateOccupancyBlockEnabled();
     }
 
     private boolean isForceOpenEnabled(ApartmentEntity apartment) {
-        return apartment != null
-                && apartment.getGateForceOpenEnabled() != null
-                && apartment.getGateForceOpenEnabled();
+        return apartment != null && apartment.getGateForceOpenEnabled() != null && apartment.getGateForceOpenEnabled();
     }
 
     private void sendGateEntryNotificationIfNeeded(ResidentVehicleEntity residentVehicle, boolean gateOpen) {
-        if (!gateOpen || residentVehicle == null || residentVehicle.getResident() == null) {
-            return;
-        }
+        if (!gateOpen || residentVehicle == null || residentVehicle.getResident() == null) return;
         Integer residentNo = residentVehicle.getResident().getNo();
-        if (residentNo == null) {
-            return;
-        }
-        appResidentFeatureService.sendPushToResident(
-                residentNo,
-                "🚗 입차 알림",
-                residentVehicle.getNumber() + " 차량이 입구를 통과했습니다."
-        );
+        if (residentNo == null) return;
+        appResidentFeatureService.sendPushToResident(residentNo, "🚗 입차 알림", residentVehicle.getNumber() + " 차량이 입구를 통과했습니다.");
     }
 
     private Occupancy calculateOccupancy(ApartmentEntity apartment) {
@@ -419,180 +400,102 @@ public class PythonGateService {
                 : parkingLotRepository.findAll();
 
         List<ParkingZoneEntity> normalZones = parkingLots.stream()
-                .filter(parkingLot -> parkingLot.getNo() != null)
-                .flatMap(parkingLot -> parkingZoneRepository.findByParkingLot_No(parkingLot.getNo()).stream())
-                .filter(this::isNormalZone)
-                .toList();
+                .filter(pl -> pl.getNo() != null)
+                .flatMap(pl -> parkingZoneRepository.findByParkingLot_No(pl.getNo()).stream())
+                .filter(this::isNormalZone).toList();
 
         int total = normalZones.size();
-        int used = (int) normalZones.stream()
-                .filter(zone -> STATUS_OCCUPIED.equals(zone.getStatus()))
-                .count();
+        int used = (int) normalZones.stream().filter(z -> STATUS_OCCUPIED.equals(z.getStatus())).count();
         int available = Math.max(total - used, 0);
         double rate = total > 0 ? (double) used / total : 0.0;
         return new Occupancy(total, used, available, rate);
     }
 
     private boolean isNormalZone(ParkingZoneEntity zone) {
-        return zone != null
-                && (zone.getZoneType() == null
-                || zone.getZoneType().isBlank()
-                || ZONE_TYPE_NORMAL.equals(zone.getZoneType()));
+        return zone != null && (zone.getZoneType() == null || zone.getZoneType().isBlank() || ZONE_TYPE_NORMAL.equals(zone.getZoneType()));
     }
 
     private String buildGateReason(
-            boolean isRegistered,
-            boolean isResidentVehicle,
-            boolean isVisitorVehicle,
-            boolean gateOpen,
-            boolean occupancyBlockEnabled,
-            boolean forceOpenEnabled,
-            boolean full,
-            boolean overThreshold
+            boolean isRegistered, boolean isResidentVehicle, boolean isVisitorVehicle, boolean gateOpen,
+            boolean occupancyBlockEnabled, boolean forceOpenEnabled, boolean full, boolean overThreshold
     ) {
-        if (forceOpenEnabled) {
-            return "관리자 설정에 따라 차단기를 상시 개방합니다.";
-        }
-        if (!isRegistered) {
-            return "등록되지 않은 차량입니다.";
-        }
-        if (isResidentVehicle) {
-            return "입주민 등록 차량은 주차장 점유율과 관계없이 개방합니다.";
-        }
-        if (gateOpen && !occupancyBlockEnabled) {
-            return "관리자 설정에 따라 방문차량도 번호판 등록 여부만 확인했습니다.";
-        }
-        if (gateOpen && isVisitorVehicle) {
-            return "방문 등록 차량이며 주차장 혼잡도 조건을 통과했습니다.";
-        }
-        if (full) {
-            return "주차장이 만차라 방문차량은 입차할 수 없습니다.";
-        }
-        if (overThreshold) {
-            return "주차장 점유율이 80% 이상이라 방문차량은 입차할 수 없습니다.";
-        }
+        if (forceOpenEnabled) return "관리자 설정에 따라 차단기를 상시 개방합니다.";
+        if (!isRegistered) return "등록되지 않은 차량입니다.";
+        if (isResidentVehicle) return "입주민 등록 차량은 주차장 점유율과 관계없이 개방합니다.";
+        if (gateOpen && !occupancyBlockEnabled) return "관리자 설정에 따라 방문차량도 번호판 등록 여부만 확인했습니다.";
+        if (gateOpen && isVisitorVehicle) return "방문 등록 차량이며 주차장 혼잡도 조건을 통과했습니다.";
+        if (full) return "주차장이 만차라 방문차량은 입차할 수 없습니다.";
+        if (overThreshold) return "주차장 점유율이 80% 이상이라 방문차량은 입차할 수 없습니다.";
         return "차단기 개방 조건을 만족하지 않습니다.";
     }
 
     private String buildGateAlertMessage(
-            boolean ocrError,
-            String zoneName,
-            String eventTime,
-            String plate,
-            String candidates,
-            String imagePath
+            boolean ocrError, String zoneName, String eventTime, String plate, String candidates, String imagePath
     ) {
         StringBuilder message = new StringBuilder();
         if (ocrError) {
-            if (zoneName != null) {
-                message.append(zoneName).append(" 구역 번호판 인식 실패. 관리자 확인 필요.");
-            } else {
-                message.append("주차 구역 번호판 인식 실패. 관리자 확인 필요.");
-            }
+            message.append(zoneName != null ? zoneName : "주차").append(" 구역 번호판 인식 실패. 관리자 확인 필요.");
         } else if (candidates != null && !candidates.isBlank()) {
             message.append("후보 차량 [").append(candidates).append("] 중 자동 연결할 주차 기록을 확정하지 못했습니다.");
         } else {
             message.append("차단기 또는 주차 인식 결과 확인이 필요합니다.");
         }
-        if (!ocrError && zoneName != null) {
-            message.append(" 구역: ").append(zoneName).append(".");
-        }
-        if (eventTime != null) {
-            message.append(" 시간: ").append(eventTime).append(".");
-        }
-        if (plate != null) {
-            message.append(" 차량번호: ").append(plate).append(".");
-        }
-        if (candidates != null) {
-            message.append(" 내용: ").append(candidates).append(".");
-        }
-        if (imagePath != null) {
-            message.append(" 이미지: ").append(imagePath);
-        }
+        if (!ocrError && zoneName != null) message.append(" 구역: ").append(zoneName).append(".");
+        if (eventTime != null) message.append(" 시간: ").append(eventTime).append(".");
+        if (plate != null) message.append(" 차량번호: ").append(plate).append(".");
+        if (candidates != null) message.append(" 내용: ").append(candidates).append(".");
+        if (imagePath != null) message.append(" 이미지: ").append(imagePath);
         return limitText(message.toString(), 255);
     }
 
     private String buildAlertTitle(boolean ocrError, boolean assignFail) {
-        if (ocrError) {
-            return "번호판 인식 실패";
-        }
-        if (assignFail) {
-            return "번호판 자동 연결 실패";
-        }
+        if (ocrError) return "번호판 인식 실패";
+        if (assignFail) return "번호판 자동 연결 실패";
         return "주차 인식 확인 필요";
     }
 
     private Integer stableAlertReferenceId(String type, String zoneName, String candidates, String plate) {
-        String key = String.join(
-                "|",
-                type != null ? type : "",
-                zoneName != null ? zoneName : "",
-                candidates != null ? candidates : "",
-                plate != null ? plate : ""
-        );
+        String key = String.join("|", type != null ? type : "", zoneName != null ? zoneName : "",
+                candidates != null ? candidates : "", plate != null ? plate : "");
         return Math.abs(key.hashCode());
     }
 
     private String limitText(String text, int maxLength) {
-        if (text == null || text.length() <= maxLength) {
-            return text;
-        }
-        return text.substring(0, maxLength);
+        return (text == null || text.length() <= maxLength) ? text : text.substring(0, maxLength);
     }
 
     private boolean hasKey(Map<String, Object> request, String key) {
         return request != null && request.containsKey(key);
     }
 
-    private record Occupancy(int total, int used, int available, double rate) {
-    }
+    private record Occupancy(int total, int used, int available, double rate) {}
 
     private String firstText(Map<String, Object> request, String... keys) {
-        if (request == null) {
-            return null;
-        }
+        if (request == null) return null;
         for (String key : keys) {
             Object value = request.get(key);
-            if (value != null && !value.toString().isBlank()) {
-                return value.toString();
-            }
+            if (value != null && !value.toString().isBlank()) return value.toString();
         }
         return null;
     }
 
     private boolean firstBoolean(Map<String, Object> request, String... keys) {
-        if (request == null) {
-            return false;
-        }
+        if (request == null) return false;
         for (String key : keys) {
             Object value = request.get(key);
-            if (value instanceof Boolean booleanValue) {
-                return booleanValue;
-            }
-            if (value != null && !value.toString().isBlank()) {
-                return Boolean.parseBoolean(value.toString());
-            }
+            if (value instanceof Boolean booleanValue) return booleanValue;
+            if (value != null && !value.toString().isBlank()) return Boolean.parseBoolean(value.toString());
         }
         return false;
     }
 
     private Integer firstInteger(Map<String, Object> request, String... keys) {
-        if (request == null) {
-            return null;
-        }
+        if (request == null) return null;
         for (String key : keys) {
             Object value = request.get(key);
-            if (value == null || value.toString().isBlank()) {
-                continue;
-            }
-            if (value instanceof Number number) {
-                return number.intValue();
-            }
-            try {
-                return Integer.parseInt(value.toString());
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
+            if (value == null || value.toString().isBlank()) continue;
+            if (value instanceof Number number) return number.intValue();
+            try { return Integer.parseInt(value.toString()); } catch (NumberFormatException ignored) {}
         }
         return null;
     }
