@@ -43,7 +43,8 @@ import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PreDestroy; // 👈 맨 위 import 모여있는 곳에 추가
 import org.springframework.context.annotation.Lazy; // 👈 import 추가
 import org.springframework.beans.factory.annotation.Autowired; // 👈 import 추가
-
+import web.parking.repository.ParkingLotRepository;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +65,7 @@ public class AppResidentFeatureService {
     private final ManagerNotificationService managerNotificationService;
     // 👇 [새로 추가] 3분 뒤에 예약을 취소시킬 타이머 도구입니다.
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(5);
+    private final ParkingLotRepository parkingLotRepository;
 
     // 👇 [추가] 자기 자신의 복제본(Proxy)을 불러와 트랜잭션을 유지하는 마법의 키워드!
     @Autowired
@@ -332,7 +334,7 @@ public class AppResidentFeatureService {
                         }, 3, TimeUnit.MINUTES); // 👈 (여기를 1로 바꾸면 1분 타이머가 됩니다)
                     }
                 }
-// =========================================================
+                // =========================================================
                 // 💡 [주차 완료 시] 차를 대면 'occupied'로 덮어씌워지며 예약이 자동으로 종료됨
                 // =========================================================
                 else if ((update.getStatus().equals("occupied") || update.getStatus().equals("사용중")) && zone.getCurrentCarNumber() != null) {
@@ -378,8 +380,44 @@ public class AppResidentFeatureService {
                     // 👆👆 여기까지 새로 추가된 부분 👆👆
                 }
             });
+        }// 💡💡💡 바로 여기입니다! for문이 끝난 직후, return success(); 바로 위! 💡💡💡
+        // =========================================================
+        // 💡 [2단계 방어: 사전 경고 알림] 주차 완료 후 점유율 80% 초과 시 타겟팅 알림
+        // =========================================================
+        if (requestDto.getUpdates() != null && !requestDto.getUpdates().isEmpty()) {
+            String sampleSlot = requestDto.getUpdates().get(0).getSlot();
+            parkingZoneRepository.findByAreaNumber(sampleSlot).ifPresent(zone -> {
+                if (zone.getParkingLot() != null && zone.getParkingLot().getApartment() != null) {
+                    web.aptManager.entity.ApartmentEntity apartment = zone.getParkingLot().getApartment();
+
+                    List<web.parking.entity.ParkingLotEntity> lots = parkingLotRepository.findByApartment_No(apartment.getNo());
+                    List<web.parking.entity.ParkingZoneEntity> normalZones = lots.stream()
+                            .flatMap(pl -> parkingZoneRepository.findByParkingLot_No(pl.getNo()).stream())
+                            .filter(z -> z != null && (z.getZoneType() == null || "normal".equals(z.getZoneType()))).toList();
+
+                    int total = normalZones.size();
+                    int used = (int) normalZones.stream().filter(z -> "occupied".equals(z.getStatus())).count();
+                    double rate = total > 0 ? (double) used / total : 0.0;
+
+                    if (rate >= 0.8) {
+                        registeredCarRepository.findAll().stream()
+                                .filter(car -> car.getParkedAt() == null && car.getResident() != null && car.getResident().getApartment().getNo().equals(apartment.getNo()))
+                                .forEach(car -> {
+                                    Integer residentNo = car.getResident().getNo();
+                                    if (!hasUnreadDuplicateNotification(residentNo, "⚠️ 방문 차량 입차 불가 안내", "현재 주차장이 80%를 초과하여")) {
+                                        sendPushToResident(
+                                                residentNo,
+                                                "⚠️ 방문 차량 입차 불가 안내",
+                                                "주차장 혼잡도가 80%를 초과하여 등록해두신 방문 차량(" + car.getNumber() + ")의 입차가 제한됩니다. 방문자에게 미리 안내해 주세요!"
+                                        );
+                                    }
+                                });
+                    }
+                }
+            });
         }
         return success();
+
     }
     private AppSettingEntity findOrCreateSetting(Integer residentNo) {
         String deviceId = deviceId(residentNo);
