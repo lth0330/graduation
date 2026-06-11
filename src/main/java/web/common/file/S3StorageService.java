@@ -1,7 +1,6 @@
 package web.common.file;
 
 import java.io.IOException;
-import java.net.URL;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,7 +11,8 @@ import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetUrlRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Service
@@ -74,6 +74,22 @@ public class S3StorageService {
         return true;
     }
 
+    public StoredS3Object readObject(String objectKey) {
+        if (!isEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "S3 storage is not configured.");
+        }
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "S3 object key is required.");
+        }
+
+        var responseBytes = s3Client().getObjectAsBytes(GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(cleanObjectKey(objectKey))
+                .build());
+        GetObjectResponse response = responseBytes.response();
+        return new StoredS3Object(responseBytes.asByteArray(), response.contentType());
+    }
+
     private void uploadBytes(String objectKey, byte[] bytes, String contentType) {
         PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
                 .bucket(bucket)
@@ -87,11 +103,7 @@ public class S3StorageService {
     }
 
     private String getPublicUrl(String objectKey) {
-        URL url = s3Client().utilities().getUrl(GetUrlRequest.builder()
-                .bucket(bucket)
-                .key(objectKey)
-                .build());
-        return url.toString();
+        return "/uploads/s3/" + cleanObjectKey(objectKey);
     }
 
     private S3Client s3Client() {
@@ -126,7 +138,11 @@ public class S3StorageService {
                 .replaceAll("\\s+", "_");
     }
 
-    private String extractObjectKey(String fileUrl) {
+    public String extractObjectKey(String fileUrl) {
+        if (fileUrl.startsWith("/uploads/s3/")) {
+            return cleanObjectKey(fileUrl.substring("/uploads/s3/".length()));
+        }
+
         int bucketIndex = fileUrl.indexOf(bucket);
         if (bucketIndex < 0) {
             return null;
@@ -136,5 +152,12 @@ public class S3StorageService {
         return afterBucket.replaceFirst("^\\.s3[.-][^/]+\\.amazonaws\\.com/", "")
                 .replaceFirst("^\\.s3\\.amazonaws\\.com/", "")
                 .replaceFirst("^/", "");
+    }
+
+    private String cleanObjectKey(String objectKey) {
+        return objectKey.replace("\\", "/").replaceAll("^/+", "");
+    }
+
+    public record StoredS3Object(byte[] bytes, String contentType) {
     }
 }
