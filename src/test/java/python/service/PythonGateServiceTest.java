@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import app.entity.RegisteredCarEntity;
+import app.repository.AppNotificationRepository;
 import app.repository.RegisteredCarRepository;
 import app.service.AppResidentFeatureService;
 import java.time.LocalDateTime;
@@ -82,7 +83,8 @@ class PythonGateServiceTest {
                 parkingZoneRepository,
                 apartmentRepository,
                 managerNotificationService,
-                appResidentFeatureService
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class)
         );
 
         Map<String, Object> result = service.checkPlate("12가1234", 1);
@@ -145,7 +147,8 @@ class PythonGateServiceTest {
                 parkingZoneRepository,
                 apartmentRepository,
                 managerNotificationService,
-                appResidentFeatureService
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class)
         );
 
         Map<String, Object> result = service.checkPlate("12가1234", 1);
@@ -191,7 +194,8 @@ class PythonGateServiceTest {
                 parkingZoneRepository,
                 apartmentRepository,
                 managerNotificationService,
-                appResidentFeatureService
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class)
         );
 
         Map<String, Object> result = service.checkPlate("37나 5209", 1);
@@ -235,7 +239,8 @@ class PythonGateServiceTest {
                 parkingZoneRepository,
                 apartmentRepository,
                 managerNotificationService,
-                appResidentFeatureService
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class)
         );
 
         service.checkPlate("37나5209", 1);
@@ -276,7 +281,8 @@ class PythonGateServiceTest {
                 parkingZoneRepository,
                 apartmentRepository,
                 managerNotificationService,
-                appResidentFeatureService
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class)
         );
 
         service.saveGateLog(Map.of(
@@ -325,7 +331,8 @@ class PythonGateServiceTest {
                 parkingZoneRepository,
                 apartmentRepository,
                 managerNotificationService,
-                appResidentFeatureService
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class)
         );
 
         service.saveDoubleParkingAlert(Map.of(
@@ -381,7 +388,8 @@ class PythonGateServiceTest {
                 parkingZoneRepository,
                 apartmentRepository,
                 managerNotificationService,
-                appResidentFeatureService
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class)
         );
 
         service.saveDoubleParkingAlert(Map.of(

@@ -60,7 +60,6 @@ public class AppVehicleService {
             RegisteredCarEntity visitorCar = RegisteredCarEntity.builder()
                     .resident(resident)
                     .number(carNumber)
-                    .expiresAt(ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusHours(24).toLocalDateTime())
                     .build();
             registeredCarRepository.save(visitorCar);
             return success();
