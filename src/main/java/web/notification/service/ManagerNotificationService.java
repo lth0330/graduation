@@ -41,6 +41,22 @@ public class ManagerNotificationService {
             return null;
         }
 
+        if (type != null && referenceType != null && referenceId != null) {
+            List<ManagerNotificationEntity> existingNotifications =
+                    managerNotificationRepository.findByApartment_NoAndTypeAndReferenceTypeAndReferenceIdAndReadFalse(
+                            apartment.getNo(),
+                            type,
+                            referenceType,
+                            referenceId
+                    );
+            if (!existingNotifications.isEmpty()) {
+                ManagerNotificationEntity existingNotification = existingNotifications.get(0);
+                existingNotification.setTitle(title);
+                existingNotification.setMessage(message);
+                return existingNotification;
+            }
+        }
+
         return managerNotificationRepository.save(ManagerNotificationEntity.builder()
                 .apartment(apartment)
                 .type(type)

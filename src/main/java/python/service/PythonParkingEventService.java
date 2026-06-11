@@ -63,6 +63,7 @@ public class PythonParkingEventService {
     // 💡 [핵심 2] 복잡한 알림 도구들을 다 지우고, 대신 '앱 서비스'를 통째로 불러옵니다!
     private final AppResidentFeatureService appResidentFeatureService;
     private final ParkingSnapshotStorageService parkingSnapshotStorageService;
+    private final PlateCorrectionReviewService plateCorrectionReviewService;
 
     public List<Map<String, String>> findCarNumbers() {
         Set<String> carNumbers = new LinkedHashSet<>();
@@ -86,16 +87,16 @@ public class PythonParkingEventService {
     // FastAPI 차단기 제어용 전체 주차장 점유율을 계산한다.
     public Map<String, Object> findOccupancy() {
         List<ParkingLotEntity> parkingLots = parkingLotRepository.findAll();
-        int total = parkingLots.stream()
-                .map(ParkingLotEntity::getTotalSpaces)
-                .filter(value -> value != null && value > 0)
-                .mapToInt(Integer::intValue)
-                .sum();
-        int used = parkingLots.stream()
-                .map(ParkingLotEntity::getUsedSpaces)
-                .filter(value -> value != null && value > 0)
-                .mapToInt(Integer::intValue)
-                .sum();
+        List<ParkingZoneEntity> normalZones = parkingLots.stream()
+                .filter(parkingLot -> parkingLot.getNo() != null)
+                .flatMap(parkingLot -> parkingZoneRepository.findByParkingLot_No(parkingLot.getNo()).stream())
+                .filter(this::isNormalZone)
+                .toList();
+
+        int total = normalZones.size();
+        int used = (int) normalZones.stream()
+                .filter(zone -> STATUS_OCCUPIED.equals(zone.getStatus()))
+                .count();
         int available = Math.max(total - used, 0);
         double rate = total > 0 ? (double) used / total : 0.0;
 
@@ -154,6 +155,7 @@ public class PythonParkingEventService {
 
         appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_OCCUPIED, zone, linkedZone));
 
+        recordCorrectionReviewIfNeeded(requestDto, savedHistory, zone);
         createParkingNotificationIfNeeded(zone, savedHistory);
         return result("entry", zone, savedHistory);
     }
@@ -210,6 +212,7 @@ public class PythonParkingEventService {
             linkedZone.setStatusChangeReason("Python 객체인식 연결 주차칸 번호판 업데이트");
         }
         sendParkingCompleteNotificationIfNeeded(zone, previousPlate, residentVehicle);
+        recordCorrectionReviewIfNeeded(requestDto, history, zone);
 
         return result("update", zone, history);
     }
@@ -286,6 +289,49 @@ public class PythonParkingEventService {
         return imagePath.trim();
     }
 
+    private void recordCorrectionReviewIfNeeded(
+            PythonParkingEntryRequestDto requestDto,
+            ParkingHistoryEntity history,
+            ParkingZoneEntity zone
+    ) {
+        if (requestDto == null || !Boolean.TRUE.equals(requestDto.getNeedsReview())) {
+            return;
+        }
+        plateCorrectionReviewService.recordNeedsReview(
+                resolveApartment(zone),
+                history,
+                zone.getAreaNumber(),
+                requestDto.getOcrPlate(),
+                requestDto.getMatchedPlate(),
+                requestDto.getCandidateList(),
+                requestDto.getDistance()
+        );
+    }
+
+    private void recordCorrectionReviewIfNeeded(
+            PythonParkingPlateUpdateRequestDto requestDto,
+            ParkingHistoryEntity history,
+            ParkingZoneEntity zone
+    ) {
+        if (requestDto == null || !Boolean.TRUE.equals(requestDto.getNeedsReview())) {
+            return;
+        }
+        plateCorrectionReviewService.recordNeedsReview(
+                resolveApartment(zone),
+                history,
+                zone.getAreaNumber(),
+                requestDto.getOcrPlate(),
+                requestDto.getMatchedPlate(),
+                requestDto.getCandidateList(),
+                requestDto.getDistance()
+        );
+    }
+
+    private web.aptManager.entity.ApartmentEntity resolveApartment(ParkingZoneEntity zone) {
+        ParkingLotEntity parkingLot = zone != null ? zone.getParkingLot() : null;
+        return parkingLot != null ? parkingLot.getApartment() : null;
+    }
+
     private ParkingZoneEntity findLinkedZoneIfNeeded(
             ParkingZoneEntity zone,
             String parkType,
@@ -333,11 +379,19 @@ public class PythonParkingEventService {
         if (zone == null || zone.getParkingLot() == null || zone.getParkingLot().getNo() == null) {
             return;
         }
-        long occupiedCount = parkingZoneRepository.countByParkingLot_NoAndStatus(
+        long occupiedCount = parkingZoneRepository.countByParkingLot_NoAndZoneTypeAndStatus(
                 zone.getParkingLot().getNo(),
+                ZONE_TYPE_NORMAL,
                 STATUS_OCCUPIED
         );
         zone.getParkingLot().setUsedSpaces((int) Math.min(occupiedCount, Integer.MAX_VALUE));
+    }
+
+    private boolean isNormalZone(ParkingZoneEntity zone) {
+        return zone != null
+                && (zone.getZoneType() == null
+                || zone.getZoneType().isBlank()
+                || ZONE_TYPE_NORMAL.equals(zone.getZoneType()));
     }
 
     private AppParkingUpdateRequestDto buildParkingUpdateRequest(
