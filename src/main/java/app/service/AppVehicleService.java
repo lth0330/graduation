@@ -62,7 +62,10 @@ public class AppVehicleService {
                     .number(carNumber)
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
                     .expiresAt(ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusHours(24).toLocalDateTime())
+=======
+>>>>>>> b9c41fc3b5e0cb070fa8543188fc020fb6bf0b6b
                     .build();
 =======
                     .build(); // 👈 여기서 비로소 세미콜론(;)으로 문장 마무리!
