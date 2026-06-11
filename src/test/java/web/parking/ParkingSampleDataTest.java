@@ -82,6 +82,23 @@ class ParkingSampleDataTest {
                 .containsExactly("double_lane", "double_lane", "double_lane");
     }
 
+    @Test
+    void sqlInitializationRunsResetBeforeSeedDataWhenEnabled() throws IOException {
+        String properties = readProjectFile("src/main/resources/application.properties");
+        String resetSql = readProjectFile("src/main/resources/sql/reset.sql");
+
+        assertThat(properties).contains(
+                "spring.sql.init.schema-locations=classpath:/sql/reset.sql",
+                "spring.sql.init.data-locations=classpath:/sql/data.sql"
+        );
+        assertThat(resetSql).contains(
+                "DELETE FROM plate_correction_review;",
+                "DELETE FROM parking_history;",
+                "DELETE FROM apartments;",
+                "ALTER TABLE parking_zone AUTO_INCREMENT = 1;"
+        );
+    }
+
     private String readProjectFile(String relativePath) throws IOException {
         return Files.readString(Path.of(relativePath));
     }
