@@ -9,13 +9,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import jakarta.persistence.Column;
 import org.junit.jupiter.api.Test;
+import web.parking.entity.ParkingHistoryEntity;
 
 class ParkingSampleDataTest {
 
     private static final Pattern PARKING_ZONE_ROW = Pattern.compile(
             "\\(\\s*(\\d+),\\s*(\\d+),\\s*'([^']+)',\\s*'[^']*',\\s*'[^']*',\\s*'[^']*',\\s*"
                     + "(\\d+),\\s*(\\d+),\\s*(\\d+),\\s*(\\d+),"
+    );
+    private static final Pattern PARKING_ZONE_TYPE_ROW = Pattern.compile(
+            "\\(\\s*(\\d+),\\s*\\d+,\\s*'([^']+)',\\s*'[^']*',\\s*'[^']*',\\s*'([^']+)'"
     );
 
     @Test
@@ -48,6 +53,33 @@ class ParkingSampleDataTest {
         String sql = readProjectFile("src/main/java/aws_db.sql");
 
         assertThat(sql).contains("layout_width INT", "layout_height INT");
+    }
+
+    @Test
+    void awsSchemaAllowsLongParkingHistoryImagePath() throws IOException {
+        String sql = readProjectFile("src/main/java/aws_db.sql");
+
+        assertThat(sql).contains("image_path VARCHAR(1024)");
+    }
+
+    @Test
+    void parkingHistoryEntityAllowsLongImagePath() throws NoSuchFieldException {
+        Column column = ParkingHistoryEntity.class
+                .getDeclaredField("imagePath")
+                .getAnnotation(Column.class);
+
+        assertThat(column.length()).isEqualTo(1024);
+    }
+
+    @Test
+    void parkingZoneSevenEightNineAreDoubleLaneInSampleData() throws IOException {
+        String sql = readProjectFile("src/main/resources/sql/data.sql");
+        List<SampleParkingZoneType> zoneTypes = parseParkingZoneTypes(sql);
+
+        assertThat(zoneTypes)
+                .filteredOn(zone -> List.of(7, 8, 9).contains(zone.parkingZoneNo()))
+                .extracting(SampleParkingZoneType::zoneType)
+                .containsExactly("double_lane", "double_lane", "double_lane");
     }
 
     private String readProjectFile(String relativePath) throws IOException {
@@ -84,6 +116,21 @@ class ParkingSampleDataTest {
         return rowOverlaps && columnOverlaps;
     }
 
+    private List<SampleParkingZoneType> parseParkingZoneTypes(String sql) {
+        List<SampleParkingZoneType> zones = new ArrayList<>();
+        Matcher matcher = PARKING_ZONE_TYPE_ROW.matcher(sql);
+
+        while (matcher.find()) {
+            zones.add(new SampleParkingZoneType(
+                    Integer.parseInt(matcher.group(1)),
+                    matcher.group(2),
+                    matcher.group(3)
+            ));
+        }
+
+        return zones;
+    }
+
     private record SampleParkingZone(
             int parkingZoneNo,
             int parkingLotNo,
@@ -92,6 +139,13 @@ class ParkingSampleDataTest {
             int layoutColumn,
             int layoutWidth,
             int layoutHeight
+    ) {
+    }
+
+    private record SampleParkingZoneType(
+            int parkingZoneNo,
+            String areaNumber,
+            String zoneType
     ) {
     }
 }

@@ -152,9 +152,9 @@ VALUES
     (4, 1, 'a-b1-004', 'B1 4번 주차칸', 'empty', 'normal', 1, 5, 1, 2, '초기 등록', NULL),
     (5, 1, 'a-b1-005', 'B1 5번 주차칸', 'empty', 'normal', 1, 7, 1, 2, '초기 등록', NULL),
     (6, 1, 'a-b1-006', 'B1 6번 주차칸', 'empty', 'normal', 1, 8, 1, 2, '초기 등록', NULL),
-    (7, 1, 'a-b1-007', 'B1 7번 주차칸', 'empty', 'normal', 3, 1, 2, 1, '초기 등록', NULL),
-    (8, 1, 'a-b1-008', 'B1 8번 주차칸', 'empty', 'normal', 3, 4, 2, 1, '초기 등록', NULL),
-    (9, 1, 'a-b1-009', 'B1 9번 주차칸', 'empty', 'normal', 3, 7, 2, 1, '초기 등록', NULL)
+    (7, 1, 'a-b1-007', 'B1 7번 통로 주차칸', 'empty', 'double_lane', 3, 1, 2, 1, '초기 등록', NULL),
+    (8, 1, 'a-b1-008', 'B1 8번 통로 주차칸', 'empty', 'double_lane', 3, 4, 2, 1, '초기 등록', NULL),
+    (9, 1, 'a-b1-009', 'B1 9번 통로 주차칸', 'empty', 'double_lane', 3, 7, 2, 1, '초기 등록', NULL)
 ON DUPLICATE KEY UPDATE
     pz_no = pz_no;
 
