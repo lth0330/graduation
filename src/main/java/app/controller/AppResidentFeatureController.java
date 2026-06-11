@@ -1,4 +1,4 @@
-\package app.controller;
+package app.controller;
 
 import java.util.Map;
 import lombok.RequiredArgsConstructor;

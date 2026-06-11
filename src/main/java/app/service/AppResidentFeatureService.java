@@ -332,22 +332,29 @@ public class AppResidentFeatureService {
                         }, 3, TimeUnit.MINUTES); // 👈 (여기를 1로 바꾸면 1분 타이머가 됩니다)
                     }
                 }
-                // =========================================================
-                // 💡 [주차 완료 시] 차를 대면 'occupied'로 덮어씌워지며 예약이 자동으로 종료됨
-                // =========================================================
+// =========================================================
+// 💡 [주차 완료 시] 차를 대면 'occupied'로 덮어씌워지며 예약이 자동으로 종료됨
+// =========================================================
                 else if ((update.getStatus().equals("occupied") || update.getStatus().equals("사용중")) && zone.getCurrentCarNumber() != null) {
-                    residentVehicleRepository.findByNumber(zone.getCurrentCarNumber()).ifPresent(car -> {
-                        String msg = "[" + update.getSlot() + "] 구역에 차량(" + car.getNumber() + ") 주차가 완료되었습니다.";
-                        notificationRepository.save(AppNotificationEntity.builder()
-                                .resident(car.getResident()).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
 
-                        boolean isPushOn2 = settingRepository.findByDeviceId("device_" + car.getResident().getNo())
-                                .map(AppSettingEntity::getAlertPush).orElse(true);
-                        if (isPushOn2) {
-                            deviceInfoRepository.findByResident_No(car.getResident().getNo())
-                                    .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
-                        }
-                    });
+                    // 👇 [수정됨] 카메라가 보낸 번호와 DB 번호의 모든 공백을 제거하고 대조합니다!
+                    String targetPlate = zone.getCurrentCarNumber().replaceAll("\\s+", "");
+
+                    residentVehicleRepository.findAll().stream()
+                            .filter(v -> v.getNumber().replaceAll("\\s+", "").equals(targetPlate))
+                            .findFirst()
+                            .ifPresent(car -> {
+                                String msg = "[" + update.getSlot() + "] 구역에 차량(" + car.getNumber() + ") 주차가 완료되었습니다.";
+                                notificationRepository.save(AppNotificationEntity.builder()
+                                        .resident(car.getResident()).type("system").title("🅿️ 주차 완료 알림").message(msg).read(false).build());
+
+                                boolean isPushOn2 = settingRepository.findByDeviceId("device_" + car.getResident().getNo())
+                                        .map(AppSettingEntity::getAlertPush).orElse(true);
+                                if (isPushOn2) {
+                                    deviceInfoRepository.findByResident_No(car.getResident().getNo())
+                                            .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
+                                }
+                            });
                 }
             });
         }
