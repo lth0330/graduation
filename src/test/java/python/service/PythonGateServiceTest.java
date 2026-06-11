@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import app.entity.RegisteredCarEntity;
 import app.repository.RegisteredCarRepository;
 import app.service.AppResidentFeatureService;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -90,6 +91,70 @@ class PythonGateServiceTest {
         assertThat(result.get("used")).isEqualTo(3);
         assertThat(result.get("rate")).isEqualTo(0.75);
         assertThat(result.get("gate_open")).isEqualTo(true);
+    }
+
+    @Test
+    void checkPlateBlocksVisitorWhenNormalZoneOccupancyIsOverEightyPercent() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        RegisteredCarRepository registeredCarRepository = mock(RegisteredCarRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        GateEntryLogRepository gateEntryLogRepository = mock(GateEntryLogRepository.class);
+        ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
+        ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
+        ApartmentRepository apartmentRepository = mock(ApartmentRepository.class);
+        ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);
+        AppResidentFeatureService appResidentFeatureService = mock(AppResidentFeatureService.class);
+
+        ApartmentEntity apartment = ApartmentEntity.builder()
+                .no(1)
+                .name("테스트아파트")
+                .gateOccupancyBlockEnabled(true)
+                .gateForceOpenEnabled(false)
+                .build();
+        ResidentEntity resident = ResidentEntity.builder().apartment(apartment).build();
+        RegisteredCarEntity visitorVehicle = RegisteredCarEntity.builder()
+                .number("12가1234")
+                .resident(resident)
+                .build();
+        ParkingLotEntity parkingLot = ParkingLotEntity.builder()
+                .no(1)
+                .apartment(apartment)
+                .totalSpaces(6)
+                .usedSpaces(5)
+                .build();
+
+        when(apartmentRepository.findById(1)).thenReturn(Optional.of(apartment));
+        when(registeredCarRepository.findFirstByNumber("12가1234")).thenReturn(Optional.of(visitorVehicle));
+        when(parkingLotRepository.findByApartment_No(1)).thenReturn(List.of(parkingLot));
+        when(parkingZoneRepository.findByParkingLot_No(1)).thenReturn(List.of(
+                normalZone(parkingLot, "a-b1-001", "occupied"),
+                normalZone(parkingLot, "a-b1-002", "occupied"),
+                normalZone(parkingLot, "a-b1-003", "occupied"),
+                normalZone(parkingLot, "a-b1-004", "occupied"),
+                normalZone(parkingLot, "a-b1-005", "occupied"),
+                normalZone(parkingLot, "a-b1-006", "empty"),
+                doubleLaneZone(parkingLot, "a-b1-007", "occupied")
+        ));
+
+        PythonGateService service = new PythonGateService(
+                residentVehicleRepository,
+                registeredCarRepository,
+                parkingHistoryRepository,
+                gateEntryLogRepository,
+                parkingLotRepository,
+                parkingZoneRepository,
+                apartmentRepository,
+                managerNotificationService,
+                appResidentFeatureService
+        );
+
+        Map<String, Object> result = service.checkPlate("12가1234", 1);
+
+        assertThat(result.get("total")).isEqualTo(6);
+        assertThat(result.get("used")).isEqualTo(5);
+        assertThat(result.get("rate")).isEqualTo(5.0 / 6.0);
+        assertThat(result.get("gate_open")).isEqualTo(false);
+        assertThat(result.get("reason")).isEqualTo("주차장 점유율이 80% 이상이라 방문차량은 입차할 수 없습니다.");
     }
 
     @Test
@@ -180,6 +245,49 @@ class PythonGateServiceTest {
                 "🚗 입차 알림",
                 "37나5209 차량이 입구를 통과했습니다."
         );
+    }
+
+    @Test
+    void saveGateLogStartsVisitorExpirationWithoutMarkingParked() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        RegisteredCarRepository registeredCarRepository = mock(RegisteredCarRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        GateEntryLogRepository gateEntryLogRepository = mock(GateEntryLogRepository.class);
+        ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
+        ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
+        ApartmentRepository apartmentRepository = mock(ApartmentRepository.class);
+        ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);
+        AppResidentFeatureService appResidentFeatureService = mock(AppResidentFeatureService.class);
+        RegisteredCarEntity visitorVehicle = RegisteredCarEntity.builder()
+                .number("12가1234")
+                .build();
+        LocalDateTime gateTime = LocalDateTime.of(2026, 6, 11, 9, 15);
+
+        when(registeredCarRepository.findFirstByNumber("12가1234")).thenReturn(Optional.of(visitorVehicle));
+        when(gateEntryLogRepository.save(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PythonGateService service = new PythonGateService(
+                residentVehicleRepository,
+                registeredCarRepository,
+                parkingHistoryRepository,
+                gateEntryLogRepository,
+                parkingLotRepository,
+                parkingZoneRepository,
+                apartmentRepository,
+                managerNotificationService,
+                appResidentFeatureService
+        );
+
+        service.saveGateLog(Map.of(
+                "c_number", "12가1234",
+                "is_resident", true,
+                "gate_open", true,
+                "gate_time", "2026-06-11 09:15:00"
+        ));
+
+        assertThat(visitorVehicle.getParkedAt()).isNull();
+        assertThat(visitorVehicle.getExpiresAt()).isEqualTo(gateTime.plusDays(1));
     }
 
     @Test

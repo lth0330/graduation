@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import python.repository.GateEntryLogRepository;
 import web.parking.dto.VisitorCarManagementDto;
 import web.resident.entity.ResidentEntity;
 
@@ -19,6 +20,7 @@ import web.resident.entity.ResidentEntity;
 public class VisitorCarManagementService {
 
     private final RegisteredCarRepository registeredCarRepository;
+    private final GateEntryLogRepository gateEntryLogRepository;
 
     public List<VisitorCarManagementDto> findVisitorCars(Integer apartmentNo) {
         return registeredCarRepository.findByResident_Apartment_No(apartmentNo)
@@ -72,8 +74,18 @@ public class VisitorCarManagementService {
                 .building(resident != null ? resident.getDong() : null)
                 .unit(resident != null ? resident.getHo() : null)
                 .registeredAt(visitorCar.getRegisteredAt())
+                .gateEnteredAt(findLatestGateEnteredAt(visitorCar))
                 .parkedAt(visitorCar.getParkedAt())
                 .expiresAt(visitorCar.getExpiresAt())
                 .build();
+    }
+
+    private LocalDateTime findLatestGateEnteredAt(RegisteredCarEntity visitorCar) {
+        if (visitorCar == null || visitorCar.getNumber() == null || visitorCar.getNumber().isBlank()) {
+            return null;
+        }
+        return gateEntryLogRepository.findFirstByPlateAndGateOpenTrueOrderByGateTimeDesc(visitorCar.getNumber())
+                .map(gateEntryLog -> gateEntryLog.getGateTime())
+                .orElse(null);
     }
 }

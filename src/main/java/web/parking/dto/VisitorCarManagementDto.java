@@ -21,6 +21,7 @@ public class VisitorCarManagementDto {
     private String building;
     private String unit;
     private LocalDateTime registeredAt;
+    private LocalDateTime gateEnteredAt;
     private LocalDateTime parkedAt;
     private LocalDateTime expiresAt;
 }

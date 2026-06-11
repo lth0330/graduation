@@ -57,7 +57,6 @@ public class AppVehicleService {
             RegisteredCarEntity visitorCar = RegisteredCarEntity.builder()
                     .resident(resident)
                     .number(carNumber)
-                    .expiresAt(java.time.LocalDateTime.now().plusHours(24)) // 👈 점(.)으로 꼬리 물기 성공!
                     .build(); // 👈 여기서 비로소 세미콜론(;)으로 문장 마무리!
             registeredCarRepository.save(visitorCar);
             return success();

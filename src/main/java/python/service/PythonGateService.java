@@ -133,6 +133,7 @@ public class PythonGateService {
                 .gateOpen(gateOpen)
                 .gateTime(gateTime)
                 .build());
+        startVisitorExpirationIfGateOpened(plate, gateOpen, gateTime);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("result", "ok");
@@ -143,6 +144,17 @@ public class PythonGateService {
         response.put("gate_time", savedLog.getGateTime());
         response.put("saved", true);
         return response;
+    }
+
+    private void startVisitorExpirationIfGateOpened(String plate, boolean gateOpen, LocalDateTime gateTime) {
+        if (!gateOpen) {
+            return;
+        }
+        RegisteredCarEntity visitorVehicle = findVisitorVehicle(plate);
+        if (visitorVehicle == null || visitorVehicle.getParkedAt() != null) {
+            return;
+        }
+        visitorVehicle.setExpiresAt(gateTime.plusDays(1));
     }
 
     // 번호판이 UNKNOWN인 진행 중 주차 기록을 찾아 차단기 인식 결과와 매칭할 수 있게 한다.
