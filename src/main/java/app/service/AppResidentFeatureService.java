@@ -333,13 +333,14 @@ public class AppResidentFeatureService {
                     }
                 }
 // =========================================================
-// 💡 [주차 완료 시] 차를 대면 'occupied'로 덮어씌워지며 예약이 자동으로 종료됨
-// =========================================================
+                // 💡 [주차 완료 시] 차를 대면 'occupied'로 덮어씌워지며 예약이 자동으로 종료됨
+                // =========================================================
                 else if ((update.getStatus().equals("occupied") || update.getStatus().equals("사용중")) && zone.getCurrentCarNumber() != null) {
 
                     // 👇 [수정됨] 카메라가 보낸 번호와 DB 번호의 모든 공백을 제거하고 대조합니다!
                     String targetPlate = zone.getCurrentCarNumber().replaceAll("\\s+", "");
 
+                    // 1. [기존] 입주민 차량 검색 및 알림 로직
                     residentVehicleRepository.findAll().stream()
                             .filter(v -> v.getNumber().replaceAll("\\s+", "").equals(targetPlate))
                             .findFirst()
@@ -355,6 +356,26 @@ public class AppResidentFeatureService {
                                             .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 주차 완료 알림", msg));
                                 }
                             });
+
+                    // 👇👇 [새로 추가된 부분] 방문자 차량 검색 및 알림 로직 👇👇
+                    registeredCarRepository.findAll().stream()
+                            .filter(v -> v.getNumber().replaceAll("\\s+", "").equals(targetPlate))
+                            .findFirst()
+                            .ifPresent(visitorCar -> {
+                                if (visitorCar.getResident() != null) {
+                                    String msg = "[" + update.getSlot() + "] 구역에 방문 차량(" + visitorCar.getNumber() + ") 주차가 완료되었습니다.";
+                                    notificationRepository.save(AppNotificationEntity.builder()
+                                            .resident(visitorCar.getResident()).type("system").title("🅿️ 방문 차량 주차 완료").message(msg).read(false).build());
+
+                                    boolean isPushOn2 = settingRepository.findByDeviceId("device_" + visitorCar.getResident().getNo())
+                                            .map(AppSettingEntity::getAlertPush).orElse(true);
+                                    if (isPushOn2) {
+                                        deviceInfoRepository.findByResident_No(visitorCar.getResident().getNo())
+                                                .forEach(d -> fcmService.sendPush(d.getFcmToken(), "🅿️ 방문 차량 주차 완료", msg));
+                                    }
+                                }
+                            });
+                    // 👆👆 여기까지 새로 추가된 부분 👆👆
                 }
             });
         }
