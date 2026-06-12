@@ -117,6 +117,53 @@ public class ManagerNotificationService {
     }
 
     @Transactional
+    public Map<String, Object> markAllAsRead(Map<String, Object> principal) {
+        ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
+        Integer apartmentNo = getApartmentNo(manager);
+        List<ManagerNotificationEntity> notifications =
+                managerNotificationRepository.findVisibleToManager(apartmentNo, manager.getNo());
+        int updatedCount = (int) notifications.stream()
+                .filter(notification -> !Boolean.TRUE.equals(notification.getRead()))
+                .peek(notification -> notification.setRead(true))
+                .count();
+
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("result", "ok");
+        response.put("updated_count", updatedCount);
+        return response;
+    }
+
+    @Transactional
+    public Map<String, Object> deleteMyNotification(Map<String, Object> principal, Integer notificationNo) {
+        ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
+        ManagerNotificationEntity notification = managerNotificationRepository.findById(notificationNo)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 관리자 알림입니다."));
+
+        validateSameApartment(manager, notification);
+        validateVisibleToManager(manager, notification);
+        managerNotificationRepository.delete(notification);
+
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("result", "ok");
+        response.put("deleted_count", 1);
+        return response;
+    }
+
+    @Transactional
+    public Map<String, Object> deleteAllMyNotifications(Map<String, Object> principal) {
+        ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
+        Integer apartmentNo = getApartmentNo(manager);
+        List<ManagerNotificationEntity> notifications =
+                managerNotificationRepository.findVisibleToManager(apartmentNo, manager.getNo());
+        managerNotificationRepository.deleteAll(notifications);
+
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("result", "ok");
+        response.put("deleted_count", notifications.size());
+        return response;
+    }
+
+    @Transactional
     public void markReferenceAsRead(ApartmentEntity apartment, String referenceType, Integer referenceId) {
         if (apartment == null || apartment.getNo() == null || referenceType == null || referenceId == null) {
             return;
@@ -175,6 +222,13 @@ public class ManagerNotificationService {
         Integer notificationApartmentNo = notification.getApartment() != null ? notification.getApartment().getNo() : null;
         if (!getApartmentNo(manager).equals(notificationApartmentNo)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "다른 아파트의 알림은 처리할 수 없습니다.");
+        }
+    }
+
+    private void validateVisibleToManager(ApartmentManagerEntity manager, ManagerNotificationEntity notification) {
+        ApartmentManagerEntity notificationManager = notification.getManager();
+        if (notificationManager != null && !manager.getNo().equals(notificationManager.getNo())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "다른 관리자의 알림은 처리할 수 없습니다.");
         }
     }
 

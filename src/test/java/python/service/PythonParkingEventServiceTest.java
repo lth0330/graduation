@@ -254,6 +254,7 @@ class PythonParkingEventServiceTest {
         ParkingLotEntity parkingLot = ParkingLotEntity.builder()
                 .no(1)
                 .usedSpaces(2)
+                .apartment(web.aptManager.entity.ApartmentEntity.builder().no(1).name("테스트아파트").build())
                 .build();
         ParkingZoneEntity mainZone = ParkingZoneEntity.builder()
                 .no(1)
@@ -272,6 +273,7 @@ class PythonParkingEventServiceTest {
                 .currentCarNumber("37나5209")
                 .build();
         ParkingHistoryEntity activeHistory = ParkingHistoryEntity.builder()
+                .id(101)
                 .parkingZone(mainZone)
                 .zoneSnapshot("a-b1-001")
                 .plate("37나5209")
@@ -304,6 +306,11 @@ class PythonParkingEventServiceTest {
         verify(fixture.appResidentFeatureService).updateParking(argThat(request ->
                 request.getUpdates() != null && request.getUpdates().size() == 2
         ));
+        verify(fixture.managerNotificationService).markReferenceAsRead(
+                parkingLot.getApartment(),
+                "parking_history",
+                101
+        );
     }
 
     @Test

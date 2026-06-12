@@ -182,6 +182,11 @@ public class PythonParkingEventService {
         synchronizeUsedSpaces(zone, linkedZone);
 
         appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_EMPTY, zone, linkedZone));
+        managerNotificationService.markReferenceAsRead(
+                resolveApartment(zone),
+                "parking_history",
+                history.getId()
+        );
 
         return result("exit", zone, history);
     }

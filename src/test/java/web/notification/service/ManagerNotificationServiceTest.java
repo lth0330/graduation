@@ -224,4 +224,101 @@ class ManagerNotificationServiceTest {
 
         assertThat(result.getParkingHistory()).isNull();
     }
+
+    @Test
+    void markAllAsReadMarksOnlyVisibleNotificationsForManagersApartment() {
+        ManagerNotificationRepository managerNotificationRepository = mock(ManagerNotificationRepository.class);
+        ApartmentManagerRepository apartmentManagerRepository = mock(ApartmentManagerRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        ApartmentEntity apartment = ApartmentEntity.builder().no(1).name("테스트아파트").build();
+        ApartmentManagerEntity manager = ApartmentManagerEntity.builder().no(7).apartment(apartment).build();
+        ManagerNotificationEntity unreadNotification = ManagerNotificationEntity.builder()
+                .no(20)
+                .apartment(apartment)
+                .read(false)
+                .build();
+        ManagerNotificationEntity readNotification = ManagerNotificationEntity.builder()
+                .no(21)
+                .apartment(apartment)
+                .read(true)
+                .build();
+
+        when(apartmentManagerRepository.findById(7)).thenReturn(Optional.of(manager));
+        when(managerNotificationRepository.findVisibleToManager(1, 7))
+                .thenReturn(List.of(unreadNotification, readNotification));
+
+        ManagerNotificationService service = new ManagerNotificationService(
+                managerNotificationRepository,
+                apartmentManagerRepository,
+                parkingHistoryRepository
+        );
+
+        Map<String, Object> result = service.markAllAsRead(Map.of("userNo", 7));
+
+        assertThat(unreadNotification.getRead()).isTrue();
+        assertThat(readNotification.getRead()).isTrue();
+        assertThat(result).containsEntry("updated_count", 1);
+    }
+
+    @Test
+    void deleteMyNotificationDeletesNotificationFromSameApartment() {
+        ManagerNotificationRepository managerNotificationRepository = mock(ManagerNotificationRepository.class);
+        ApartmentManagerRepository apartmentManagerRepository = mock(ApartmentManagerRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        ApartmentEntity apartment = ApartmentEntity.builder().no(1).name("테스트아파트").build();
+        ApartmentManagerEntity manager = ApartmentManagerEntity.builder().no(7).apartment(apartment).build();
+        ManagerNotificationEntity notification = ManagerNotificationEntity.builder()
+                .no(20)
+                .apartment(apartment)
+                .read(false)
+                .build();
+
+        when(apartmentManagerRepository.findById(7)).thenReturn(Optional.of(manager));
+        when(managerNotificationRepository.findById(20)).thenReturn(Optional.of(notification));
+
+        ManagerNotificationService service = new ManagerNotificationService(
+                managerNotificationRepository,
+                apartmentManagerRepository,
+                parkingHistoryRepository
+        );
+
+        Map<String, Object> result = service.deleteMyNotification(Map.of("userNo", 7), 20);
+
+        verify(managerNotificationRepository).delete(notification);
+        assertThat(result).containsEntry("deleted_count", 1);
+    }
+
+    @Test
+    void deleteAllMyNotificationsDeletesOnlyVisibleNotificationsForManagersApartment() {
+        ManagerNotificationRepository managerNotificationRepository = mock(ManagerNotificationRepository.class);
+        ApartmentManagerRepository apartmentManagerRepository = mock(ApartmentManagerRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        ApartmentEntity apartment = ApartmentEntity.builder().no(1).name("테스트아파트").build();
+        ApartmentManagerEntity manager = ApartmentManagerEntity.builder().no(7).apartment(apartment).build();
+        ManagerNotificationEntity firstNotification = ManagerNotificationEntity.builder()
+                .no(20)
+                .apartment(apartment)
+                .read(false)
+                .build();
+        ManagerNotificationEntity secondNotification = ManagerNotificationEntity.builder()
+                .no(21)
+                .apartment(apartment)
+                .read(true)
+                .build();
+
+        when(apartmentManagerRepository.findById(7)).thenReturn(Optional.of(manager));
+        when(managerNotificationRepository.findVisibleToManager(1, 7))
+                .thenReturn(List.of(firstNotification, secondNotification));
+
+        ManagerNotificationService service = new ManagerNotificationService(
+                managerNotificationRepository,
+                apartmentManagerRepository,
+                parkingHistoryRepository
+        );
+
+        Map<String, Object> result = service.deleteAllMyNotifications(Map.of("userNo", 7));
+
+        verify(managerNotificationRepository).deleteAll(List.of(firstNotification, secondNotification));
+        assertThat(result).containsEntry("deleted_count", 2);
+    }
 }
