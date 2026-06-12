@@ -24,7 +24,7 @@ public class ApartmentManagerApprovalService {
 
     public List<ApartmentManagerSignupListDto> findSignupRequests() {
         // Read: 아파트 관리자 가입 요청 목록을 조회한다.
-        return apartmentManagerRepository.findAll()
+        return apartmentManagerRepository.findAllByOrderByRequestedAtDescNoDesc()
                 .stream()
                 .map(ApartmentManagerEntity::toSignupListDTO)
                 .toList();

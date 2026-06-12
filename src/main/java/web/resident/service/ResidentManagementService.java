@@ -31,7 +31,10 @@ public class ResidentManagementService {
 
     public List<ResidentManagementDto> findApprovedResidents(Integer apartmentNo) {
         // Read: 특정 아파트의 승인된 입주민 목록을 조회한다.
-        return residentRepository.findByApartment_NoAndApprovalStatus(apartmentNo, ApprovalStatus.APPROVED)
+        return residentRepository.findByApartment_NoAndApprovalStatusOrderByRegisteredAtDescNoDesc(
+                        apartmentNo,
+                        ApprovalStatus.APPROVED
+                )
                 .stream()
                 .map(this::toManagementDto)
                 .toList();

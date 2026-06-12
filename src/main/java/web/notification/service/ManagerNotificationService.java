@@ -24,6 +24,8 @@ import web.parking.repository.ParkingHistoryRepository;
 @Transactional(readOnly = true)
 public class ManagerNotificationService {
 
+    private static final long DUPLICATE_COOLDOWN_MINUTES = 3;
+
     private final ManagerNotificationRepository managerNotificationRepository;
     private final ApartmentManagerRepository apartmentManagerRepository;
     private final ParkingHistoryRepository parkingHistoryRepository;
@@ -42,6 +44,21 @@ public class ManagerNotificationService {
         }
 
         if (type != null && referenceType != null && referenceId != null) {
+            var recentNotification = managerNotificationRepository
+                    .findFirstByApartment_NoAndTypeAndReferenceTypeAndReferenceIdAndCreatedAtAfterOrderByCreatedAtDesc(
+                            apartment.getNo(),
+                            type,
+                            referenceType,
+                            referenceId,
+                            java.time.LocalDateTime.now().minusMinutes(DUPLICATE_COOLDOWN_MINUTES)
+                    );
+            if (recentNotification.isPresent()) {
+                ManagerNotificationEntity existingNotification = recentNotification.get();
+                existingNotification.setTitle(title);
+                existingNotification.setMessage(message);
+                return existingNotification;
+            }
+
             List<ManagerNotificationEntity> existingNotifications =
                     managerNotificationRepository.findByApartment_NoAndTypeAndReferenceTypeAndReferenceIdAndReadFalse(
                             apartment.getNo(),

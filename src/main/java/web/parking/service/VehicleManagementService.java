@@ -27,7 +27,7 @@ public class VehicleManagementService {
 
     public List<VehicleManagementDto> findVehicles(Integer apartmentNo) {
         // Read: 아파트 번호로 차량 목록을 조회한다.
-        return residentVehicleRepository.findByResident_Apartment_No(apartmentNo)
+        return residentVehicleRepository.findByResident_Apartment_NoOrderByRegisteredAtDescNoDesc(apartmentNo)
                 .stream()
                 .map(this::toManagementDto)
                 .toList();

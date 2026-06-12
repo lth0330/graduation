@@ -96,7 +96,7 @@ class VisitorCarManagementServiceTest {
                         .build())
                 .build();
 
-        when(registeredCarRepository.findByResident_Apartment_No(1)).thenReturn(List.of(visitorCar));
+        when(registeredCarRepository.findByResident_Apartment_NoOrderByRegisteredAtDescNoDesc(1)).thenReturn(List.of(visitorCar));
         when(gateEntryLogRepository.findFirstByPlateAndGateOpenTrueOrderByGateTimeDesc("123가4567"))
                 .thenReturn(Optional.of(GateEntryLogEntity.builder()
                         .plate("123가4567")
@@ -109,5 +109,6 @@ class VisitorCarManagementServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getGateEnteredAt()).isEqualTo(gateTime);
         assertThat(result.get(0).getParkedAt()).isNull();
+        verify(registeredCarRepository).findByResident_Apartment_NoOrderByRegisteredAtDescNoDesc(1);
     }
 }
