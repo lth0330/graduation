@@ -14,6 +14,7 @@ DROP TABLE IF EXISTS device_info;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS manager_notification;
 DROP TABLE IF EXISTS gate_entry_log;
+DROP TABLE IF EXISTS plate_correction_review;
 DROP TABLE IF EXISTS parking_history;
 DROP TABLE IF EXISTS registered_cars;
 DROP TABLE IF EXISTS parking_zone;
@@ -166,6 +167,29 @@ CREATE TABLE parking_history (
         FOREIGN KEY (c_no) REFERENCES car (c_no) ON DELETE SET NULL,
     CONSTRAINT fk_parking_history_visitor_car
         FOREIGN KEY (v_no) REFERENCES registered_cars (v_no) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE plate_correction_review (
+    review_id INT NOT NULL AUTO_INCREMENT,
+    a_no INT NOT NULL,
+    history_id INT NOT NULL,
+    zone_name VARCHAR(50) NOT NULL,
+    ocr_plate VARCHAR(50),
+    matched_plate VARCHAR(50),
+    selected_plate VARCHAR(50),
+    candidate_list VARCHAR(500),
+    match_distance INT,
+    review_status VARCHAR(30) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    resolved_at DATETIME(6),
+    PRIMARY KEY (review_id),
+    INDEX idx_plate_correction_review_apartment (a_no),
+    INDEX idx_plate_correction_review_history (history_id),
+    INDEX idx_plate_correction_review_status (review_status),
+    CONSTRAINT fk_plate_correction_review_apartment
+        FOREIGN KEY (a_no) REFERENCES apartments (a_no),
+    CONSTRAINT fk_plate_correction_review_history
+        FOREIGN KEY (history_id) REFERENCES parking_history (history_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE gate_entry_log (
