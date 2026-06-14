@@ -1,6 +1,10 @@
 package web.parking.service;
 
+import app.entity.RegisteredCarEntity;
+import app.repository.RegisteredCarRepository;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -9,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import web.common.type.ApprovalStatus;
 import web.inquiry.repository.ResidentInquiryRepository;
 import web.parking.dto.VehicleManagementDto;
+import web.parking.dto.VehicleOwnerDto;
 import web.parking.dto.VehicleSaveRequestDto;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ResidentVehicleRepository;
@@ -24,6 +29,7 @@ public class VehicleManagementService {
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ResidentRepository residentRepository;
     private final ResidentInquiryRepository residentInquiryRepository;
+    private final RegisteredCarRepository registeredCarRepository;
 
     public List<VehicleManagementDto> findVehicles(Integer apartmentNo) {
         // Read: 아파트 번호로 차량 목록을 조회한다.
@@ -36,6 +42,23 @@ public class VehicleManagementService {
     public VehicleManagementDto findVehicle(Integer vehicleNo) {
         // Read: 차량 단건을 조회한다.
         return toManagementDto(findEntity(vehicleNo));
+    }
+
+    public VehicleOwnerDto findOwnerByCarNumber(Map<String, Object> principal, String carNumber) {
+        String compactNumber = compactCarNumber(carNumber);
+        if (compactNumber.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "차량번호는 필수입니다.");
+        }
+
+        Optional<ResidentVehicleEntity> residentVehicle =
+                residentVehicleRepository.findFirstByCompactNumber(compactNumber);
+        if (residentVehicle.isPresent()) {
+            return toOwnerDto(principal, residentVehicle.get().getResident(), residentVehicle.get().getNumber(), "resident");
+        }
+
+        RegisteredCarEntity visitorCar = registeredCarRepository.findFirstByCompactNumber(compactNumber)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "등록된 차량 소유 주민을 찾을 수 없습니다."));
+        return toOwnerDto(principal, visitorCar.getResident(), visitorCar.getNumber(), "visitor");
     }
 
     @Transactional
@@ -116,6 +139,28 @@ public class VehicleManagementService {
                 .build();
     }
 
+    private VehicleOwnerDto toOwnerDto(
+            Map<String, Object> principal,
+            ResidentEntity resident,
+            String carNumber,
+            String vehicleType
+    ) {
+        if (resident == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "차량 소유 주민을 찾을 수 없습니다.");
+        }
+
+        validateSameApartment(principal, resident);
+        return VehicleOwnerDto.builder()
+                .residentNo(resident.getNo())
+                .name(resident.getName())
+                .building(resident.getDong())
+                .unit(resident.getHo())
+                .phone(resident.getPhone())
+                .carNumber(carNumber)
+                .vehicleType(vehicleType)
+                .build();
+    }
+
     private void validateCreateRequest(VehicleSaveRequestDto requestDto) {
         validateVehicleFields(requestDto);
         if (requestDto.getOwnerId() == null) {
@@ -141,6 +186,32 @@ public class VehicleManagementService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String compactCarNumber(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", "").trim();
+    }
+
+    private void validateSameApartment(Map<String, Object> principal, ResidentEntity resident) {
+        Integer managerApartmentNo = getInteger(principal, "apartmentNo");
+        Integer residentApartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (managerApartmentNo == null || residentApartmentNo == null || !managerApartmentNo.equals(residentApartmentNo)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "다른 아파트 차량 소유자 정보는 조회할 수 없습니다.");
+        }
+    }
+
+    private Integer getInteger(Map<String, Object> principal, String key) {
+        Object value = principal != null ? principal.get(key) : null;
+        if (value instanceof Integer integerValue) {
+            return integerValue;
+        }
+        if (value instanceof Number numberValue) {
+            return numberValue.intValue();
+        }
+        if (value instanceof String stringValue && !stringValue.isBlank()) {
+            return Integer.valueOf(stringValue);
+        }
+        return null;
     }
 
     private void unlinkVehicleFromInquiries(ResidentVehicleEntity vehicle) {
