@@ -13,6 +13,10 @@ import lombok.RequiredArgsConstructor; // 💡 추가
 import app.repository.DeviceInfoRepository; // 💡 추가
 import com.google.firebase.messaging.FirebaseMessagingException; // 💡 이 줄이 꼭 있어야 합니다!
 import com.google.firebase.messaging.MessagingErrorCode;
+import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.AndroidConfig.Priority;
+
+
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -20,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 
-//123
 @Service
 @RequiredArgsConstructor // 💡 생성자 주입을 위해 추가
 public class FcmService {
@@ -67,6 +70,11 @@ public class FcmService {
                     .setNotification(Notification.builder()
                             .setTitle(title)
                             .setBody(body)
+                            .build())
+                    // 💡 핵심: 앱이 강제 종료되어 있어도 OS가 최우선으로 깨우도록 설정
+                    .setAndroidConfig(AndroidConfig.builder()
+                            .setPriority(Priority.HIGH)
+                            .setDirectBootOk(true) // 부팅 직후에도 수신 가능하도록 설정
                             .build())
                     .build();
             FirebaseMessaging.getInstance().send(message);

@@ -91,7 +91,8 @@ public class PythonGateService {
                 isRegistered, isResidentVehicle, isVisitorVehicle, gateOpen,
                 occupancyBlockEnabled, forceOpenEnabled, full, overThreshold
         ));
-        sendGateEntryNotificationIfNeeded(residentVehicle, gateOpen);
+        // 👇 변경 코드: 방문자 차량 정보도 함께 넘겨줍니다.
+        sendGateEntryNotificationIfNeeded(residentVehicle, visitorVehicle, gateOpen);
         return response;
     }
 
@@ -209,6 +210,22 @@ public class PythonGateService {
                                     "[" + zone.getAreaNumber() + "] 구역에 이중주차가 확인되었습니다. 이동 주차 바랍니다."
                             );
                         }
+
+                    }
+                }
+                // 👇 [추가] 방문 차량이 이중주차(통로) 구역에 댔을 때 호스트 입주민에게 알림
+                if (history.getVisitorVehicle() != null && history.getVisitorVehicle().getResident() != null) {
+                    Integer residentNo = history.getVisitorVehicle().getResident().getNo();
+                    ApartmentEntity apartment = zone.getParkingLot() != null ? zone.getParkingLot().getApartment() : null;
+                    Occupancy occupancy = calculateOccupancy(apartment);
+                    if (occupancy.available() > 0) {
+                        if (!isNotificationInCooldown(residentNo, "이중주차")) {
+                            appResidentFeatureService.sendPushToResident(
+                                    residentNo,
+                                    "🚨 방문 차량 이중주차 알림",
+                                    "방문 차량(" + history.getVisitorVehicle().getNumber() + ")이 [" + zone.getAreaNumber() + "] 구역에 이중주차되었습니다. 이동 주차 안내 부탁드립니다."
+                            );
+                        }
                     }
                 }
             } else {
@@ -219,6 +236,15 @@ public class PythonGateService {
                             residentNo,
                             "🅿️ 주차 완료 알림",
                             "[" + zone.getAreaNumber() + "] 구역에 주차가 완료되었습니다."
+                    );
+                }
+                // 👇 [추가] 방문 차량이 일반 구역에 주차를 완료했을 때
+                if (history.getVisitorVehicle() != null && history.getVisitorVehicle().getResident() != null) {
+                    Integer residentNo = history.getVisitorVehicle().getResident().getNo();
+                    appResidentFeatureService.sendPushToResident(
+                            residentNo,
+                            "🅿️ 방문 차량 주차 완료",
+                            "방문 차량(" + history.getVisitorVehicle().getNumber() + ")이 [" + zone.getAreaNumber() + "] 구역에 주차를 완료했습니다."
                     );
                 }
             }
@@ -385,13 +411,22 @@ public class PythonGateService {
         return apartment != null && apartment.getGateForceOpenEnabled() != null && apartment.getGateForceOpenEnabled();
     }
 
-    private void sendGateEntryNotificationIfNeeded(ResidentVehicleEntity residentVehicle, boolean gateOpen) {
-        if (!gateOpen || residentVehicle == null || residentVehicle.getResident() == null) return;
-        Integer residentNo = residentVehicle.getResident().getNo();
-        if (residentNo == null) return;
-        appResidentFeatureService.sendPushToResident(residentNo, "🚗 입차 알림", residentVehicle.getNumber() + " 차량이 입구를 통과했습니다.");
-    }
+    // 👇 메서드 이름과 파라미터, 내부 로직을 이렇게 교체하세요.
+    private void sendGateEntryNotificationIfNeeded(ResidentVehicleEntity residentVehicle, RegisteredCarEntity visitorVehicle, boolean gateOpen) {
+        if (!gateOpen) return;
 
+        // 1. 입주민 차량 입차 알림
+        if (residentVehicle != null && residentVehicle.getResident() != null) {
+            Integer residentNo = residentVehicle.getResident().getNo();
+            appResidentFeatureService.sendPushToResident(residentNo, "🚗 입차 알림", residentVehicle.getNumber() + " 차량이 입구를 통과했습니다.");
+        }
+
+        // 2. [추가] 방문 차량 입차 알림
+        if (visitorVehicle != null && visitorVehicle.getResident() != null) {
+            Integer residentNo = visitorVehicle.getResident().getNo();
+            appResidentFeatureService.sendPushToResident(residentNo, "🚗 방문 차량 입차 알림", "방문 차량(" + visitorVehicle.getNumber() + ")이 입구를 통과했습니다.");
+        }
+    }
     private Occupancy calculateOccupancy(ApartmentEntity apartment) {
         List<ParkingLotEntity> parkingLots = apartment != null && apartment.getNo() != null
                 ? parkingLotRepository.findByApartment_No(apartment.getNo())

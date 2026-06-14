@@ -60,7 +60,8 @@ public class AppVehicleService {
             RegisteredCarEntity visitorCar = RegisteredCarEntity.builder()
                     .resident(resident)
                     .number(carNumber)
-                    .build();
+                    .expiresAt(ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusHours(24).toLocalDateTime())
+                    .build(); // 👈 여기서 비로소 세미콜론(;)으로 문장 마무리!
             registeredCarRepository.save(visitorCar);
             return success();
         }
