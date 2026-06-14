@@ -159,11 +159,15 @@ public class PlateCorrectionReviewService {
     }
 
     private ResidentVehicleEntity findResidentVehicle(String plate) {
-        return residentVehicleRepository.findByNumber(plate).orElse(null);
+        return residentVehicleRepository.findByNumber(plate)
+                .or(() -> residentVehicleRepository.findFirstByCompactNumber(plate))
+                .orElse(null);
     }
 
     private RegisteredCarEntity findVisitorVehicle(String plate) {
-        return registeredCarRepository.findFirstByNumberAndParkedAtIsNull(plate).orElse(null);
+        return registeredCarRepository.findFirstByNumberAndParkedAtIsNull(plate)
+                .or(() -> registeredCarRepository.findFirstByCompactNumberAndParkedAtIsNull(plate))
+                .orElse(null);
     }
 
     private ParkingZoneEntity findLinkedZone(ParkingHistoryEntity history) {

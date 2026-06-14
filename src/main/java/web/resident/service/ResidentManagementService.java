@@ -1,6 +1,14 @@
 package web.resident.service;
 
+import app.entity.AppNotificationEntity;
+import app.entity.AppSettingEntity;
+import app.repository.AppNotificationRepository;
+import app.repository.AppSettingRepository;
+import app.repository.DeviceInfoRepository;
+import app.service.FcmService;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -12,6 +20,7 @@ import web.aptManager.repository.ApartmentRepository;
 import web.common.type.ApprovalStatus;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ResidentVehicleRepository;
+import web.resident.dto.ResidentContactNotificationRequestDto;
 import web.resident.dto.ResidentCreateRequestDto;
 import web.resident.dto.ResidentManagementDto;
 import web.resident.dto.ResidentUpdateRequestDto;
@@ -28,10 +37,17 @@ public class ResidentManagementService {
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ApartmentRepository apartmentRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AppNotificationRepository appNotificationRepository;
+    private final DeviceInfoRepository deviceInfoRepository;
+    private final AppSettingRepository appSettingRepository;
+    private final FcmService fcmService;
 
     public List<ResidentManagementDto> findApprovedResidents(Integer apartmentNo) {
         // Read: 특정 아파트의 승인된 입주민 목록을 조회한다.
-        return residentRepository.findByApartment_NoAndApprovalStatus(apartmentNo, ApprovalStatus.APPROVED)
+        return residentRepository.findByApartment_NoAndApprovalStatusOrderByRegisteredAtDescNoDesc(
+                        apartmentNo,
+                        ApprovalStatus.APPROVED
+                )
                 .stream()
                 .map(this::toManagementDto)
                 .toList();
@@ -115,6 +131,43 @@ public class ResidentManagementService {
         residentRepository.delete(resident);
     }
 
+    @Transactional
+    public Map<String, Object> sendContactNotification(
+            Map<String, Object> principal,
+            Integer residentNo,
+            ResidentContactNotificationRequestDto requestDto
+    ) {
+        validateContactNotificationRequest(requestDto);
+        ResidentEntity resident = findEntity(residentNo);
+        validateSameApartment(principal, resident);
+
+        String title = limitText(requestDto.getTitle().trim(), 100);
+        String message = requestDto.getMessage().trim();
+        String type = normalizeNotificationType(requestDto.getType());
+        boolean pushEnabled = isPushEnabled(resident);
+
+        appNotificationRepository.save(AppNotificationEntity.builder()
+                .resident(resident)
+                .type(type)
+                .title(title)
+                .message(message)
+                .read(false)
+                .build());
+
+        if (pushEnabled) {
+            deviceInfoRepository.findByResident_No(resident.getNo()).forEach(device -> {
+                fcmService.sendPush(device.getFcmToken(), title, message);
+            });
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("result", "ok");
+        response.put("resident_no", resident.getNo());
+        response.put("type", type);
+        response.put("push_sent", pushEnabled);
+        return response;
+    }
+
     private ResidentEntity findEntity(Integer residentNo) {
         return residentRepository.findById(residentNo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 주민입니다."));
@@ -134,6 +187,52 @@ public class ResidentManagementService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private void validateContactNotificationRequest(ResidentContactNotificationRequestDto requestDto) {
+        if (requestDto == null || isBlank(requestDto.getTitle()) || isBlank(requestDto.getMessage())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "알림 제목과 내용을 입력하세요.");
+        }
+    }
+
+    private void validateSameApartment(Map<String, Object> principal, ResidentEntity resident) {
+        Integer managerApartmentNo = getInteger(principal, "apartmentNo");
+        Integer residentApartmentNo = resident.getApartment() != null ? resident.getApartment().getNo() : null;
+        if (managerApartmentNo == null || residentApartmentNo == null || !managerApartmentNo.equals(residentApartmentNo)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "다른 아파트 주민에게는 알림을 보낼 수 없습니다.");
+        }
+    }
+
+    private Integer getInteger(Map<String, Object> principal, String key) {
+        Object value = principal != null ? principal.get(key) : null;
+        if (value instanceof Integer integerValue) {
+            return integerValue;
+        }
+        if (value instanceof Number numberValue) {
+            return numberValue.intValue();
+        }
+        if (value instanceof String stringValue && !stringValue.isBlank()) {
+            return Integer.valueOf(stringValue);
+        }
+        return null;
+    }
+
+    private String normalizeNotificationType(String type) {
+        String normalizedType = type != null ? type.trim() : "";
+        return normalizedType.isBlank() ? "manager_contact" : limitText(normalizedType, 20);
+    }
+
+    private boolean isPushEnabled(ResidentEntity resident) {
+        return appSettingRepository.findByDeviceId("device_" + resident.getNo())
+                .map(AppSettingEntity::getAlertPush)
+                .orElse(true);
+    }
+
+    private String limitText(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 
     private Integer normalizeLimit(Integer limit, int defaultLimit) {

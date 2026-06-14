@@ -367,12 +367,6 @@ public class PythonGateService {
         return compactPlate.isBlank() ? null : compactPlate;
     }
 
-    private boolean existsByCompactPlate(String plate) {
-        String compactPlate = compact(plate);
-        return residentVehicleRepository.findAll().stream().anyMatch(v -> compact(v.getNumber()).equals(compactPlate))
-                || registeredCarRepository.findAll().stream().anyMatch(v -> compact(v.getNumber()).equals(compactPlate));
-    }
-
     private String compact(String plate) {
         return plate == null ? "" : plate.replaceAll("\\s+", "");
     }
@@ -387,14 +381,18 @@ public class PythonGateService {
     }
 
     private ResidentVehicleEntity findResidentVehicle(String plate) {
-        return residentVehicleRepository.findByNumber(plate).orElseGet(() -> residentVehicleRepository.findAll()
-                .stream().filter(v -> compact(v.getNumber()).equals(compact(plate))).findFirst().orElse(null));
+        String compactPlate = compact(plate);
+        return residentVehicleRepository.findByNumber(plate)
+                .or(() -> residentVehicleRepository.findFirstByCompactNumber(compactPlate))
+                .orElse(null);
     }
 
     private RegisteredCarEntity findVisitorVehicle(String plate) {
         if (plate == null) return null;
-        return registeredCarRepository.findFirstByNumber(plate).orElseGet(() -> registeredCarRepository.findAll()
-                .stream().filter(v -> compact(v.getNumber()).equals(compact(plate))).findFirst().orElse(null));
+        String compactPlate = compact(plate);
+        return registeredCarRepository.findFirstByNumber(plate)
+                .or(() -> registeredCarRepository.findFirstByCompactNumber(compactPlate))
+                .orElse(null);
     }
 
     private ApartmentEntity findGateApartment(Integer apartmentNo, ResidentVehicleEntity residentVehicle, RegisteredCarEntity visitorVehicle) {

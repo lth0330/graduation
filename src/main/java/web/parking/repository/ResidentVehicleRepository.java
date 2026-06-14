@@ -3,15 +3,27 @@ package web.parking.repository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import web.parking.entity.ResidentVehicleEntity;
 
 public interface ResidentVehicleRepository extends JpaRepository<ResidentVehicleEntity, Integer> {
 
     Optional<ResidentVehicleEntity> findByNumber(String number);
 
+    @Query(value = """
+            select *
+            from car
+            where replace(c_number, ' ', '') = :compactNumber
+            limit 1
+            """, nativeQuery = true)
+    Optional<ResidentVehicleEntity> findFirstByCompactNumber(@Param("compactNumber") String compactNumber);
+
     List<ResidentVehicleEntity> findByResident_No(Integer residentNo);
 
     List<ResidentVehicleEntity> findByResident_Apartment_No(Integer apartmentNo);
+
+    List<ResidentVehicleEntity> findByResident_Apartment_NoOrderByRegisteredAtDescNoDesc(Integer apartmentNo);
 
     List<ResidentVehicleEntity> findByResident_Apartment_NoAndResident_DongAndResident_Ho(
             Integer apartmentNo,

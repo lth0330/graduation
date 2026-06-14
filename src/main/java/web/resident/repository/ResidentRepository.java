@@ -12,7 +12,14 @@ public interface ResidentRepository extends JpaRepository<ResidentEntity, Intege
 
     List<ResidentEntity> findByApartment_No(Integer apartmentNo);
 
+    List<ResidentEntity> findByApartment_NoOrderByRegisteredAtDescNoDesc(Integer apartmentNo);
+
     List<ResidentEntity> findByApartment_NoAndApprovalStatus(Integer apartmentNo, ApprovalStatus approvalStatus);
+
+    List<ResidentEntity> findByApartment_NoAndApprovalStatusOrderByRegisteredAtDescNoDesc(
+            Integer apartmentNo,
+            ApprovalStatus approvalStatus
+    );
 
     List<ResidentEntity> findByApartment_NoAndDongAndHo(Integer apartmentNo, String dong, String ho);
 

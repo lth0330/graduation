@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Service
 public class S3StorageService {
@@ -82,12 +83,16 @@ public class S3StorageService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "S3 object key is required.");
         }
 
-        var responseBytes = s3Client().getObjectAsBytes(GetObjectRequest.builder()
-                .bucket(bucket)
-                .key(cleanObjectKey(objectKey))
-                .build());
-        GetObjectResponse response = responseBytes.response();
-        return new StoredS3Object(responseBytes.asByteArray(), response.contentType());
+        try {
+            var responseBytes = s3Client().getObjectAsBytes(GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(cleanObjectKey(objectKey))
+                    .build());
+            GetObjectResponse response = responseBytes.response();
+            return new StoredS3Object(responseBytes.asByteArray(), response.contentType());
+        } catch (S3Exception exception) {
+            throw toUploadReadException(exception);
+        }
     }
 
     private void uploadBytes(String objectKey, byte[] bytes, String contentType) {
@@ -156,6 +161,17 @@ public class S3StorageService {
 
     private String cleanObjectKey(String objectKey) {
         return objectKey.replace("\\", "/").replaceAll("^/+", "");
+    }
+
+    private ResponseStatusException toUploadReadException(S3Exception exception) {
+        int statusCode = exception.statusCode();
+        if (statusCode == HttpStatus.NOT_FOUND.value()) {
+            return new ResponseStatusException(HttpStatus.NOT_FOUND, "S3 image file was not found.", exception);
+        }
+        if (statusCode == HttpStatus.FORBIDDEN.value()) {
+            return new ResponseStatusException(HttpStatus.FORBIDDEN, "S3 image access is denied.", exception);
+        }
+        return new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to read S3 image file.", exception);
     }
 
     public record StoredS3Object(byte[] bytes, String contentType) {

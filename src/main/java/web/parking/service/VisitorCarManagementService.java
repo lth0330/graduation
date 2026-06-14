@@ -23,7 +23,7 @@ public class VisitorCarManagementService {
     private final GateEntryLogRepository gateEntryLogRepository;
 
     public List<VisitorCarManagementDto> findVisitorCars(Integer apartmentNo) {
-        return registeredCarRepository.findByResident_Apartment_No(apartmentNo)
+        return registeredCarRepository.findByResident_Apartment_NoOrderByRegisteredAtDescNoDesc(apartmentNo)
                 .stream()
                 .map(this::toManagementDto)
                 .toList();

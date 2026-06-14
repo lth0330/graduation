@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -203,6 +204,50 @@ class PythonGateServiceTest {
         assertThat(result.get("plate")).isEqualTo("37나5209");
         assertThat(result.get("gate_open")).isEqualTo(true);
         verify(residentVehicleRepository).findByNumber("37나5209");
+    }
+
+    @Test
+    void checkPlateUsesCompactPlateQueryInsteadOfScanningAllVehicles() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        RegisteredCarRepository registeredCarRepository = mock(RegisteredCarRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        GateEntryLogRepository gateEntryLogRepository = mock(GateEntryLogRepository.class);
+        ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
+        ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
+        ApartmentRepository apartmentRepository = mock(ApartmentRepository.class);
+        ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);
+        AppResidentFeatureService appResidentFeatureService = mock(AppResidentFeatureService.class);
+
+        ApartmentEntity apartment = ApartmentEntity.builder().no(1).name("테스트아파트").build();
+        ResidentEntity resident = ResidentEntity.builder().no(7).name("차량소유자").apartment(apartment).build();
+        ResidentVehicleEntity vehicle = ResidentVehicleEntity.builder()
+                .number("37나 5209")
+                .resident(resident)
+                .build();
+
+        when(apartmentRepository.findById(1)).thenReturn(Optional.of(apartment));
+        when(residentVehicleRepository.findByNumber("37나5209")).thenReturn(Optional.empty());
+        when(residentVehicleRepository.findFirstByCompactNumber("37나5209")).thenReturn(Optional.of(vehicle));
+
+        PythonGateService service = new PythonGateService(
+                residentVehicleRepository,
+                registeredCarRepository,
+                parkingHistoryRepository,
+                gateEntryLogRepository,
+                parkingLotRepository,
+                parkingZoneRepository,
+                apartmentRepository,
+                managerNotificationService,
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class)
+        );
+
+        Map<String, Object> result = service.checkPlate("37나5209", 1);
+
+        assertThat(result.get("gate_open")).isEqualTo(true);
+        verify(residentVehicleRepository).findFirstByCompactNumber("37나5209");
+        verify(residentVehicleRepository, never()).findAll();
+        verify(registeredCarRepository, never()).findAll();
     }
 
     @Test

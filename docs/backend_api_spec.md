@@ -1,6 +1,6 @@
 # 백엔드 API 명세
 
-기준일: 2026-06-08
+기준일: 2026-06-12
 
 Base URL:
 
@@ -206,11 +206,16 @@ double_lane  통로 주차칸
 | 관리자 알림 목록 | GET | `/api/manager-notifications` |
 | 관리자 알림 상세 | GET | `/api/manager-notifications/{notificationNo}` |
 | 관리자 알림 읽음 처리 | PATCH | `/api/manager-notifications/{notificationNo}/read` |
+| 관리자 알림 전체 읽음 처리 | PATCH | `/api/manager-notifications/read-all` |
+| 관리자 알림 개별 삭제 | DELETE | `/api/manager-notifications/{notificationNo}` |
+| 관리자 알림 전체 삭제 | DELETE | `/api/manager-notifications` |
 
 주요 생성 조건:
 
+- 앱에서 입주민 회원가입 신청
 - 앱에서 입주민 문의 작성
 - Python 주차 이벤트에서 OCR 실패 또는 이상 주차 감지
+- OCR 번호판 후보가 관리자의 확인이 필요한 경우
 
 OCR 실패/이상 주차 알림은 주차 이력을 기준으로 연결합니다.
 
@@ -218,6 +223,14 @@ OCR 실패/이상 주차 알림은 주차 이력을 기준으로 연결합니다
 notificationType = ocr_error 또는 abnormal_parking
 referenceType = parking_history
 referenceId = parking_history.history_id
+```
+
+번호판 보정 검토 알림은 아래 기준으로 연결합니다.
+
+```text
+notificationType = plate_review_required
+referenceType = plate_correction_review
+referenceId = plate_correction_review.review_id
 ```
 
 알림 상세 응답에서 `referenceType`이 `parking_history`이고 주차 이력이 존재하면 `parkingHistory`가 함께 내려갑니다.
@@ -250,6 +263,22 @@ referenceId = parking_history.history_id
 }
 ```
 
+전체 읽음/삭제 응답 예시:
+
+```json
+{
+  "result": "ok",
+  "updated_count": 3
+}
+```
+
+```json
+{
+  "result": "ok",
+  "deleted_count": 3
+}
+```
+
 ## 10-1. 주차 이력 조회
 
 아파트 관리자 화면에서 관리자 알림의 `referenceId`로 연결된 주차 이력을 조회하는 API입니다.
@@ -276,6 +305,73 @@ referenceId = parking_history.history_id
   "parkType": "normal",
   "linkedZone": null,
   "imagePath": "/uploads/parking-snapshots/parking-snapshot-20260609_103000-abcd.jpg"
+}
+```
+
+## 10-2. 번호판 보정 검토
+
+Python OCR 결과가 등록 차량 후보와 유사하지만 자동 확정하기 어려운 경우, 아파트 관리자가 웹의 `주차 관리 > 번호판 보정` 화면에서 직접 확정하는 API입니다.
+
+| 기능 | Method | URL |
+|---|---:|---|
+| 번호판 보정 대기 목록 | GET | `/api/plate-correction-reviews/pending` |
+| 번호판 보정 확정 | PATCH | `/api/plate-correction-reviews/{reviewId}/confirm` |
+
+대기 목록 응답 예시:
+
+```json
+[
+  {
+    "reviewId": 1,
+    "apartmentNo": 1,
+    "historyId": 3,
+    "zone": "a-b1-002",
+    "ocrPlate": "12가1235",
+    "matchedPlate": null,
+    "selectedPlate": null,
+    "candidateList": ["12가1234", "12가1236"],
+    "distance": 1,
+    "status": "NEEDS_REVIEW",
+    "createdAt": "2026-06-12T18:30:00",
+    "resolvedAt": null,
+    "parkingHistory": {
+      "historyId": 3,
+      "zone": "a-b1-002",
+      "plate": "UNKNOWN",
+      "status": "PARKED",
+      "imagePath": "/uploads/parking-snapshots/parking-snapshot-20260612_183000-abcd.jpg"
+    }
+  }
+]
+```
+
+확정 요청:
+
+```json
+{
+  "plate": "12가1234"
+}
+```
+
+확정 처리 시 아래 데이터가 함께 갱신됩니다.
+
+```text
+parking_history.history_plate
+parking_zone.current_car_number
+plate_correction_review.review_status = CONFIRMED
+plate_correction_review.selected_plate
+연결된 번호판 보정 알림 읽음 처리
+```
+
+확정 응답 예시:
+
+```json
+{
+  "result": "ok",
+  "review_id": 1,
+  "history_id": 3,
+  "zone": "a-b1-002",
+  "plate": "12가1234"
 }
 ```
 
@@ -349,7 +445,11 @@ Flutter 앱에서 호출하는 API입니다.
   "slot": "A-1",
   "status": "empty",
   "isOccupied": false,
-  "current_car_number": null
+  "current_car_number": null,
+  "layout_row": 1,
+  "layout_column": 1,
+  "layout_width": 1,
+  "layout_height": 2
 }
 ```
 
@@ -412,6 +512,7 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 - `/api/gate/check` 요청의 아파트 번호는 `apartmentNo`, `apartment_no`, `a_no` 중 하나로 전달할 수 있습니다.
 - 입차 이벤트는 기존 `image_path`와 새 `image_base64`를 모두 받을 수 있습니다. `image_base64`가 있으면 Spring Boot가 이미지 파일을 `/uploads/parking-snapshots/...`로 저장한 뒤 그 경로를 `parking_history.image_path`에 저장합니다.
 - 번호판 수정 `/api/parking/update-plate`도 `image_base64`를 받을 수 있으며, 이미 생성된 진행 중 주차 기록의 `image_path`를 갱신합니다.
+- 번호판 수정 요청에 `needs_review=true`와 후보 목록이 포함되면 `plate_correction_review`에 관리자 확인 대기 기록을 저장하고 `plate_review_required` 관리자 알림을 생성할 수 있습니다.
 - OCR 실패 등 Python 알림 요청은 `/api/gate/alert`를 통해 관리자 알림(`manager_notification`)으로 저장합니다. `apartment_no`나 `history_id`가 없어도 `zone`으로 주차구역을 찾아 해당 아파트 알림으로 저장합니다.
 - OCR 실패 알림은 `reference_type=parking_history`, `reference_id=history_id` 기준으로 저장합니다. `history_id`가 없는 경우에도 알림은 저장할 수 있지만, 알림 상세의 `parkingHistory`는 null입니다.
 
@@ -496,6 +597,13 @@ FastAPI가 Spring Boot로 전달하는 주차/차단기 API입니다.
 | `multi_zone` | 두 칸 이상 걸침 |
 | `double_lane` | 통로 주차 |
 | `aisle_block` | 통로 방해 |
+
+### 번호판 보정 검토 상태
+
+| 값 | 의미 |
+|---|---|
+| `NEEDS_REVIEW` | 관리자 확인 필요 |
+| `CONFIRMED` | 관리자 확정 완료 |
 
 ## 17. 프론트/앱 호출 주의사항
 

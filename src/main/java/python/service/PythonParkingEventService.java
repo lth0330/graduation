@@ -182,6 +182,11 @@ public class PythonParkingEventService {
         synchronizeUsedSpaces(zone, linkedZone);
 
         appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_EMPTY, zone, linkedZone));
+        managerNotificationService.markReferenceAsRead(
+                resolveApartment(zone),
+                "parking_history",
+                history.getId()
+        );
 
         return result("exit", zone, history);
     }
@@ -233,14 +238,18 @@ public class PythonParkingEventService {
         if (UNKNOWN_PLATE.equals(plate)) {
             return null;
         }
-        return residentVehicleRepository.findByNumber(plate).orElse(null);
+        return residentVehicleRepository.findByNumber(plate)
+                .or(() -> residentVehicleRepository.findFirstByCompactNumber(plate))
+                .orElse(null);
     }
 
     private RegisteredCarEntity findVisitorVehicle(String plate) {
         if (UNKNOWN_PLATE.equals(plate)) {
             return null;
         }
-        return registeredCarRepository.findFirstByNumberAndParkedAtIsNull(plate).orElse(null);
+        return registeredCarRepository.findFirstByNumberAndParkedAtIsNull(plate)
+                .or(() -> registeredCarRepository.findFirstByCompactNumberAndParkedAtIsNull(plate))
+                .orElse(null);
     }
 
     private LocalDateTime parseDateTime(String value) {

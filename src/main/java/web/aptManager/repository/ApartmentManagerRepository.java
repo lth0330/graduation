@@ -14,6 +14,8 @@ public interface ApartmentManagerRepository extends JpaRepository<ApartmentManag
 
     List<ApartmentManagerEntity> findByApartment_No(Integer apartmentNo);
 
+    List<ApartmentManagerEntity> findAllByOrderByRequestedAtDescNoDesc();
+
     long countByApprovalStatus(ApprovalStatus approvalStatus);
 
     boolean existsByLoginId(String loginId);

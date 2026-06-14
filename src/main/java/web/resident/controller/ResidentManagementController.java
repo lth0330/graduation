@@ -1,8 +1,10 @@
 package web.resident.controller;
 
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import web.resident.dto.ResidentContactNotificationRequestDto;
 import web.resident.dto.ResidentCreateRequestDto;
 import web.resident.dto.ResidentManagementDto;
 import web.resident.dto.ResidentUpdateRequestDto;
@@ -41,6 +44,15 @@ public class ResidentManagementController {
     // Create: 관리자가 입주민을 직접 등록한다.
     public ResponseEntity<ResidentManagementDto> create(@RequestBody ResidentCreateRequestDto requestDto) {
         return ResponseEntity.ok(residentManagementService.create(requestDto));
+    }
+
+    @PostMapping("/{residentNo}/notifications")
+    public ResponseEntity<Map<String, Object>> sendContactNotification(
+            @AuthenticationPrincipal Map<String, Object> principal,
+            @PathVariable Integer residentNo,
+            @RequestBody ResidentContactNotificationRequestDto requestDto
+    ) {
+        return ResponseEntity.ok(residentManagementService.sendContactNotification(principal, residentNo, requestDto));
     }
 
     @PutMapping("/{residentNo}")
