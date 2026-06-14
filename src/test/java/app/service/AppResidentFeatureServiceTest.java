@@ -18,6 +18,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import web.inquiry.repository.ResidentInquiryRepository;
 import web.notification.service.ManagerNotificationService;
+import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
@@ -83,6 +84,7 @@ class AppResidentFeatureServiceTest {
         private final ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
         private final FcmService fcmService = mock(FcmService.class);
         private final ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);
+        private final ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
         private final AppResidentFeatureService service = new AppResidentFeatureService(
                 residentRepository,
                 residentVehicleRepository,
@@ -94,7 +96,8 @@ class AppResidentFeatureServiceTest {
                 registeredCarRepository,
                 parkingZoneRepository,
                 fcmService,
-                managerNotificationService
+                managerNotificationService,
+                parkingLotRepository
         );
     }
 }
