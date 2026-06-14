@@ -1,6 +1,6 @@
 # 백엔드 API 명세
 
-기준일: 2026-06-12
+기준일: 2026-06-14
 
 Base URL:
 
@@ -121,6 +121,7 @@ visitorCarLimit = 2
 | 기능 | Method | URL |
 |---|---:|---|
 | 차량 목록 | GET | `/api/vehicles?apartmentNo=1` |
+| 차량번호로 차주 조회 | GET | `/api/vehicles/owner?carNumber=12가3456` |
 | 차량 상세 | GET | `/api/vehicles/{vehicleNo}` |
 | 차량 등록 | POST | `/api/vehicles` |
 | 차량 수정 | PUT | `/api/vehicles/{vehicleNo}` |
@@ -131,6 +132,22 @@ visitorCarLimit = 2
 차량 등록 시 `ownerId`로 소유 입주민을 지정합니다. 차량 수정 시에는 기존 소유 입주민을 유지하고 차량번호, 차종, 비고만 수정합니다. 소유 입주민을 잘못 선택해 등록한 경우에는 차량을 삭제한 뒤 올바른 입주민에게 다시 등록합니다.
 
 차량 삭제 시 해당 차량을 참조하던 입주민 문의의 `c_no`는 null로 변경됩니다. 문의 작성자 `u_no`는 유지되므로 문의 이력은 삭제되지 않습니다.
+
+차량번호로 차주 조회는 주차 상태 모니터링 화면에서 차주에게 바로 앱 알림을 보내기 위해 사용합니다. 입주민 차량 `car`에서 먼저 찾고, 없으면 방문차량 `registered_cars`에서 찾습니다. 조회된 주민이 로그인한 아파트 관리자와 같은 아파트가 아니면 `403 Forbidden`을 반환합니다.
+
+응답 예시:
+
+```json
+{
+  "residentNo": 7,
+  "name": "홍길동",
+  "building": "101",
+  "unit": "1001",
+  "phone": "010-1234-5678",
+  "carNumber": "12가3456",
+  "vehicleType": "resident"
+}
+```
 
 ## 7. 방문차량 관리
 
