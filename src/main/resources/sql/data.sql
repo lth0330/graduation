@@ -3,16 +3,21 @@
 -- 1. 서버 시작 시 필요한 기본 샘플 데이터를 넣는다.
 -- 2. spring.sql.init.mode=always 상태에서도 중복 PK 오류가 나지 않게 한다.
 -- 3. 서버 재시작 때 기존 운영 데이터와 주차 상태를 초기값으로 덮어쓰지 않는다.
--- 4. 모든 아파트 FK(a_no)는 1번 "서초 스마트 아파트"만 참조한다.
+-- 4. 모든 아파트 FK(a_no)는 1번 "성결아파트"만 참조한다.
 
 INSERT INTO apartments (
     a_no, a_name, a_pwd, a_address, a_detail_address,
     gate_occupancy_block_enabled, gate_force_open_enabled
 )
 VALUES
-    (1, '서초 스마트 아파트', '1111', '서울시 서초구 반포대로 37', '관리사무소 1층', 1, 0)
+    (1, '성결아파트', '1111', '경기도 안양시 만안구 성결대학로 53', '관리사무소 1층', 1, 0)
 ON DUPLICATE KEY UPDATE
-    a_no = a_no;
+    a_name = VALUES(a_name),
+    a_pwd = VALUES(a_pwd),
+    a_address = VALUES(a_address),
+    a_detail_address = VALUES(a_detail_address),
+    gate_occupancy_block_enabled = VALUES(gate_occupancy_block_enabled),
+    gate_force_open_enabled = VALUES(gate_force_open_enabled);
 
 INSERT INTO web_manager (w_no, w_id, w_pwd)
 VALUES
@@ -26,13 +31,23 @@ INSERT INTO apartment_manager (
     picture, approval_status, reject_reason, requested_at, approved_at
 )
 VALUES
-    -- 로그인 확인용 평문 비밀번호: qwer1234
-    (1, 1, 'qwe123', '$2a$10$Kj1149qiaxyideN8RwApmOXHWrx2ky/hj9ZhTsYVr3qH5Qz3q.VCu',
-     'xm3003@naver.com', '01012345678', '서울시 서초구 반포대로 37',
-     '김관리', 'sample-manager-1.png', 'APPROVED', NULL,
+    -- 로그인 확인용 평문 비밀번호: 12341234
+    (1, 1, 'aptadmin', '$2a$10$KNvZzeFti4D/IuYwJcAs.OmaqOgQJOrAOetJTwRz8svWVFRq4.h9G',
+     'xm3003@naver.com', '01012345678', '경기도 안양시 만안구 성결대학로 53',
+     '이태형', 'sample-manager-1.png', 'APPROVED', NULL,
      '2026-04-27 09:00:00', '2026-04-27 11:30:00')
 ON DUPLICATE KEY UPDATE
-    m_no = m_no;
+    m_id = VALUES(m_id),
+    m_pwd = VALUES(m_pwd),
+    m_email = VALUES(m_email),
+    m_phone = VALUES(m_phone),
+    m_address = VALUES(m_address),
+    m_name = VALUES(m_name),
+    picture = VALUES(picture),
+    approval_status = VALUES(approval_status),
+    reject_reason = VALUES(reject_reason),
+    requested_at = VALUES(requested_at),
+    approved_at = VALUES(approved_at);
 
 INSERT INTO `user` (
     u_no, u_id, u_pwd, u_name, u_email, u_phone, p_date,
@@ -40,30 +55,42 @@ INSERT INTO `user` (
     resident_car_limit, visitor_car_limit
 )
 VALUES
-    (1, 'minjun12', 'user1234', '김민준', 'minjun12@example.com', '01011112222',
+    (1, 'parkjunho', 'user1234', '박준호', 'parkjunho@example.com', '01011112222',
      '2026-04-30 09:00:00', '101', '1203', 1, 'APPROVED', NULL, 2, 2),
-    (2, 'seoyeon', 'user1234', '이서연', 'seoyeon@example.com', '01022223333',
+    (2, 'leeseoyeon', 'user1234', '이서연', 'leeseoyeon@example.com', '01022223333',
      '2026-04-29 10:20:00', '102', '804', 1, 'APPROVED', NULL, 1, 2),
-    (3, 'doyoon', 'user1234', '박도윤', 'doyoon@example.com', '01033334444',
+    (3, 'kimdoyoon', 'user1234', '김도윤', 'kimdoyoon@example.com', '01033334444',
      '2026-04-28 14:10:00', '103', '1501', 1, 'PENDING', NULL, 1, 2),
-    (4, 'hayoon', 'user1234', '정하윤', 'hayoon@example.com', '01044445555',
+    (4, 'junghayoon', 'user1234', '정하윤', 'junghayoon@example.com', '01044445555',
      '2026-05-01 08:40:00', '104', '502', 1, 'APPROVED', NULL, 1, 2),
-    (5, 'jihoon', 'user1234', '최지훈', 'jihoon@example.com', '01055556666',
+    (5, 'choijihoon', 'user1234', '최지훈', 'choijihoon@example.com', '01055556666',
      '2026-05-02 13:15:00', '105', '1101', 1, 'APPROVED', NULL, 2, 2),
-    (6, 'eunwoo', 'user1234', '한은우', 'eunwoo@example.com', '01066667777',
+    (6, 'haneunwoo', 'user1234', '한은우', 'haneunwoo@example.com', '01066667777',
      '2026-05-03 16:30:00', '106', '703', 1, 'PENDING', NULL, 1, 2),
-    (7, 'sua', 'user1234', '오수아', 'sua@example.com', '01077778888',
+    (7, 'ohsua', 'user1234', '오수아', 'ohsua@example.com', '01077778888',
      '2026-05-04 10:05:00', '107', '901', 1, 'REJECTED', '세대 정보 확인 필요', 1, 2)
 ON DUPLICATE KEY UPDATE
-    u_no = u_no;
+    u_id = VALUES(u_id),
+    u_pwd = VALUES(u_pwd),
+    u_name = VALUES(u_name),
+    u_email = VALUES(u_email),
+    u_phone = VALUES(u_phone),
+    p_date = VALUES(p_date),
+    u_dong = VALUES(u_dong),
+    u_ho = VALUES(u_ho),
+    a_no = VALUES(a_no),
+    approval_status = VALUES(approval_status),
+    reject_reason = VALUES(reject_reason),
+    resident_car_limit = VALUES(resident_car_limit),
+    visitor_car_limit = VALUES(visitor_car_limit);
 
 INSERT INTO car (
     c_no, c_name, c_number, c_kind, c_note, c_date, u_no
 )
 VALUES
     -- 차단기 테스트용 입주민 차량: POST /api/gate/check 에서 true 반환
-    (1, '김민준 차량', '12가3456', '쏘나타', '기존 AWS DB에 있던 테스트 차량', '2026-04-30 09:05:00', 1),
-    (2, '김민준 차량2', '789호1234', '아반떼', '차단기 OCR 테스트 차량', '2026-05-26 09:00:00', 1),
+    (1, '박준호 차량', '12가3456', '쏘나타', '기존 AWS DB에 있던 테스트 차량', '2026-04-30 09:05:00', 1),
+    (2, '박준호 세컨드카', '789호1234', '아반떼', '차단기 OCR 테스트 차량', '2026-05-26 09:00:00', 1),
     (3, '이서연 차량', '34나7890', '카니발', '정기 등록 차량', '2026-04-29 10:25:00', 2),
     (4, '정하윤 차량', '56다1122', 'K5', '입주민 등록 차량', '2026-05-01 08:50:00', 4),
     (5, '최지훈 차량', '78라3344', '그랜저', '입주민 등록 차량', '2026-05-02 13:25:00', 5),
@@ -71,10 +98,35 @@ VALUES
     (7, '한은우 차량', '11바7788', '투싼', '가입 승인 대기 차량', '2026-05-03 16:40:00', 6),
     (8, '오수아 차량', '22사9900', '모닝', '가입 반려 샘플 차량', '2026-05-04 10:15:00', 7)
 ON DUPLICATE KEY UPDATE
-    c_no = c_no;
+    c_name = VALUES(c_name),
+    c_number = VALUES(c_number),
+    c_kind = VALUES(c_kind),
+    c_note = VALUES(c_note),
+    c_date = VALUES(c_date),
+    u_no = VALUES(u_no);
 
 -- 번호판 인식/차단기 테스트용 추가 승인 입주민.
 -- 기존 샘플 입주민의 세대별 차량 제한을 넘기지 않도록 별도 세대 샘플로 둔다.
+UPDATE `user`
+SET u_id = 'kangminsu', u_name = '강민수', u_email = 'kangminsu@example.com'
+WHERE u_id = 'samplecar01';
+
+UPDATE `user`
+SET u_id = 'yoonjiho', u_name = '윤지호', u_email = 'yoonjiho@example.com'
+WHERE u_id = 'samplecar02';
+
+UPDATE `user`
+SET u_id = 'baekharin', u_name = '백하린', u_email = 'baekharin@example.com'
+WHERE u_id = 'samplecar03';
+
+UPDATE `user`
+SET u_id = 'jangwoojin', u_name = '장우진', u_email = 'jangwoojin@example.com'
+WHERE u_id = 'samplecar04';
+
+UPDATE `user`
+SET u_id = 'songyuna', u_name = '송유나', u_email = 'songyuna@example.com'
+WHERE u_id = 'samplecar05';
+
 INSERT INTO `user` (
     u_id, u_pwd, u_name, u_email, u_phone, p_date,
     u_dong, u_ho, a_no, approval_status, reject_reason,
@@ -85,23 +137,23 @@ SELECT
     sample.u_dong, sample.u_ho, sample.a_no, sample.approval_status, sample.reject_reason,
     sample.resident_car_limit, sample.visitor_car_limit
 FROM (
-    SELECT 'samplecar01' AS u_id, 'user1234' AS u_pwd, '차량샘플1' AS u_name, 'samplecar01@example.com' AS u_email,
+    SELECT 'kangminsu' AS u_id, 'user1234' AS u_pwd, '강민수' AS u_name, 'kangminsu@example.com' AS u_email,
            '01090010001' AS u_phone, '2026-06-04 09:00:00' AS p_date, '201' AS u_dong, '101' AS u_ho,
            1 AS a_no, 'APPROVED' AS approval_status, NULL AS reject_reason, 1 AS resident_car_limit, 2 AS visitor_car_limit
     UNION ALL
-    SELECT 'samplecar02', 'user1234', '차량샘플2', 'samplecar02@example.com',
+    SELECT 'yoonjiho', 'user1234', '윤지호', 'yoonjiho@example.com',
            '01090010002', '2026-06-04 09:05:00', '201', '102',
            1, 'APPROVED', NULL, 1, 2
     UNION ALL
-    SELECT 'samplecar03', 'user1234', '차량샘플3', 'samplecar03@example.com',
+    SELECT 'baekharin', 'user1234', '백하린', 'baekharin@example.com',
            '01090010003', '2026-06-04 09:10:00', '201', '103',
            1, 'APPROVED', NULL, 1, 2
     UNION ALL
-    SELECT 'samplecar04', 'user1234', '차량샘플4', 'samplecar04@example.com',
+    SELECT 'jangwoojin', 'user1234', '장우진', 'jangwoojin@example.com',
            '01090010004', '2026-06-04 09:15:00', '201', '104',
            1, 'APPROVED', NULL, 1, 2
     UNION ALL
-    SELECT 'samplecar05', 'user1234', '차량샘플5', 'samplecar05@example.com',
+    SELECT 'songyuna', 'user1234', '송유나', 'songyuna@example.com',
            '01090010005', '2026-06-04 09:20:00', '201', '105',
            1, 'APPROVED', NULL, 1, 2
 ) AS sample
@@ -110,20 +162,32 @@ WHERE NOT EXISTS (
     WHERE existing_user.u_id = sample.u_id
 );
 
+UPDATE car c
+JOIN `user` u ON u.u_no = c.u_no
+SET c.c_name = CASE u.u_id
+    WHEN 'kangminsu' THEN '강민수 차량'
+    WHEN 'yoonjiho' THEN '윤지호 차량'
+    WHEN 'baekharin' THEN '백하린 차량'
+    WHEN 'jangwoojin' THEN '장우진 차량'
+    WHEN 'songyuna' THEN '송유나 차량'
+    ELSE c.c_name
+END
+WHERE u.u_id IN ('kangminsu', 'yoonjiho', 'baekharin', 'jangwoojin', 'songyuna');
+
 -- 요청 샘플 차량 6대 중 5대는 입주민 차량(car), 1대는 방문 차량(registered_cars)으로 등록한다.
 -- 이미 같은 샘플 사용자에게 차량이 있으면 서버 재시작 때 덮어쓰지 않는다.
 INSERT INTO car (c_name, c_number, c_kind, c_note, c_date, u_no)
 SELECT sample.c_name, sample.c_number, '테스트차량', '차단기 테스트용 입주민 차량', sample.c_date, u.u_no
 FROM (
-    SELECT 'samplecar01' AS u_id, '차량샘플1 차량' AS c_name, '112보5273' AS c_number, '2026-06-04 09:30:00' AS c_date
+    SELECT 'kangminsu' AS u_id, '강민수 차량' AS c_name, '112보5273' AS c_number, '2026-06-04 09:30:00' AS c_date
     UNION ALL
-    SELECT 'samplecar02', '차량샘플2 차량', '24조2426', '2026-06-04 09:35:00'
+    SELECT 'yoonjiho', '윤지호 차량', '24조2426', '2026-06-04 09:35:00'
     UNION ALL
-    SELECT 'samplecar03', '차량샘플3 차량', '78호12345', '2026-06-04 09:40:00'
+    SELECT 'baekharin', '백하린 차량', '78호12345', '2026-06-04 09:40:00'
     UNION ALL
-    SELECT 'samplecar04', '차량샘플4 차량', '42바3579', '2026-06-04 09:45:00'
+    SELECT 'jangwoojin', '장우진 차량', '42바3579', '2026-06-04 09:45:00'
     UNION ALL
-    SELECT 'samplecar05', '차량샘플5 차량', '37나5209', '2026-06-04 09:50:00'
+    SELECT 'songyuna', '송유나 차량', '37나5209', '2026-06-04 09:50:00'
 ) AS sample
 JOIN `user` u ON u.u_id = sample.u_id
 WHERE NOT EXISTS (
@@ -135,11 +199,15 @@ INSERT INTO parking_lot (
     pl_no, a_no, pl_name, pl_floor, total_spaces, used_spaces
 )
 VALUES
-    (1, 1, '서초 스마트 지하주차장', 'B1', 9, 0),
-    (2, 1, '서초 스마트 지상주차장', '1F', 0, 0),
-    (3, 1, '서초 스마트 방문주차장', '방문', 0, 0)
+    (1, 1, '성결아파트 지하주차장', 'B1', 9, 0),
+    (2, 1, '성결아파트 지상주차장', '1F', 0, 0),
+    (3, 1, '성결아파트 방문주차장', '방문', 0, 0)
 ON DUPLICATE KEY UPDATE
-    pl_no = pl_no;
+    a_no = VALUES(a_no),
+    pl_name = VALUES(pl_name),
+    pl_floor = VALUES(pl_floor),
+    total_spaces = VALUES(total_spaces),
+    used_spaces = VALUES(used_spaces);
 
 INSERT INTO parking_zone (
     pz_no, pl_no, area_number, location, status, zone_type, layout_row, layout_column,
@@ -169,11 +237,11 @@ ON DUPLICATE KEY UPDATE
     v_no = v_no;
 
 -- 요청 샘플 방문 차량 1대.
--- 이미 samplecar01 방문차량이 있으면 서버 재시작 때 덮어쓰지 않는다.
+-- 이미 kangminsu 방문차량이 있으면 서버 재시작 때 덮어쓰지 않는다.
 INSERT INTO registered_cars (u_no, c_number, reg_time, park_time, expire_date)
 SELECT u.u_no, '123가4567', '2026-06-04 10:00:00', NULL, NULL
 FROM `user` u
-WHERE u.u_id = 'samplecar01'
+WHERE u.u_id = 'kangminsu'
   AND NOT EXISTS (
       SELECT 1 FROM registered_cars existing_visitor_car
       WHERE existing_visitor_car.u_no = u.u_no
