@@ -416,7 +416,7 @@ public class AppResidentFeatureService {
                 }
             });
         }
-        return success();
+        return success(); //추가완료
 
     }
     private AppSettingEntity findOrCreateSetting(Integer residentNo) {
