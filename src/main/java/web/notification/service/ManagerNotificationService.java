@@ -39,11 +39,14 @@ public class ManagerNotificationService {
             String referenceType,
             Integer referenceId
     ) {
+        // 아파트 단위 관리자 알림 생성 공통 메서드입니다.
+        // Python 이벤트, 입주민 문의, 가입 요청 등 여러 서비스가 이 메서드를 통해 알림을 남깁니다.
         if (apartment == null || apartment.getNo() == null) {
             return null;
         }
 
         if (type != null && referenceType != null && referenceId != null) {
+            // 같은 원인(reference)이 짧은 시간 안에 반복되면 새 알림을 계속 만들지 않고 기존 알림만 갱신합니다.
             var recentNotification = managerNotificationRepository
                     .findFirstByApartment_NoAndTypeAndReferenceTypeAndReferenceIdAndCreatedAtAfterOrderByCreatedAtDesc(
                             apartment.getNo(),
@@ -67,6 +70,7 @@ public class ManagerNotificationService {
                             referenceId
                     );
             if (!existingNotifications.isEmpty()) {
+                // 아직 읽지 않은 동일 알림이 있으면 목록이 중복으로 쌓이지 않게 기존 항목을 재사용합니다.
                 ManagerNotificationEntity existingNotification = existingNotifications.get(0);
                 existingNotification.setTitle(title);
                 existingNotification.setMessage(message);
@@ -86,6 +90,7 @@ public class ManagerNotificationService {
     }
 
     public List<ManagerNotificationDto> findMyNotifications(Map<String, Object> principal) {
+        // JWT principal의 userNo로 현재 아파트 관리자를 찾고, 같은 아파트 알림만 반환합니다.
         ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
         Integer apartmentNo = getApartmentNo(manager);
 
@@ -101,6 +106,7 @@ public class ManagerNotificationService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 관리자 알림입니다."));
 
         validateSameApartment(manager, notification);
+        // 주차 이력과 연결된 알림이면 상세 화면에서 이미지/차량번호를 보여줄 수 있도록 이력 DTO를 함께 붙입니다.
         return toDto(notification, findReferencedParkingHistory(notification));
     }
 
@@ -165,6 +171,7 @@ public class ManagerNotificationService {
 
     @Transactional
     public void markReferenceAsRead(ApartmentEntity apartment, String referenceType, Integer referenceId) {
+        // 출차처럼 원인이 해결된 이벤트는 같은 reference를 가진 미확인 알림을 자동 읽음 처리합니다.
         if (apartment == null || apartment.getNo() == null || referenceType == null || referenceId == null) {
             return;
         }
@@ -200,6 +207,8 @@ public class ManagerNotificationService {
     }
 
     private ParkingHistoryDto findReferencedParkingHistory(ManagerNotificationEntity notification) {
+        // 알림이 parking_history를 참조할 때만 주차 이력을 조회합니다.
+        // 다른 아파트 이력이 섞이지 않도록 sameApartment 검사를 한 번 더 수행합니다.
         if (!"parking_history".equals(notification.getReferenceType()) || notification.getReferenceId() == null) {
             return null;
         }

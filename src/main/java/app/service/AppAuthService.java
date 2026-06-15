@@ -35,6 +35,7 @@ public class AppAuthService {
     private final ManagerNotificationService managerNotificationService;
 
     public Map<String, Object> login(AppLoginRequestDto requestDto) {
+        // Flutter 앱 입주민 로그인입니다. 승인된 입주민만 JWT를 발급받을 수 있습니다.
         if (isBlank(requestDto.getLoginId()) || isBlank(requestDto.getPassword())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "loginId and password are required.");
         }
@@ -67,6 +68,7 @@ public class AppAuthService {
 
     @Transactional
     public Map<String, Object> signup(AppSignupRequestDto requestDto) {
+        // 입주민 회원가입은 바로 승인되지 않고 PENDING 상태로 저장된 뒤 관리자 알림을 생성합니다.
         validateSignup(requestDto);
 
         if (residentRepository.existsByLoginId(requestDto.getLoginId().trim())) {
@@ -94,6 +96,7 @@ public class AppAuthService {
                 .build();
 
         ResidentEntity savedResident = residentRepository.save(resident);
+        // 아파트 관리자가 웹 콘솔에서 가입 요청을 확인할 수 있도록 관리자 알림을 남깁니다.
         managerNotificationService.createApartmentNotification(
                 apartment,
                 "resident_signup_request",
@@ -146,6 +149,8 @@ public class AppAuthService {
     }
 
     public Map<String, Object> userInfo(Integer residentNo) {
+        // 앱 설정/마이페이지에서 사용하는 입주민 기본 정보입니다.
+        // 차량 등록 제한값도 함께 내려주어 앱에서 등록 가능 대수를 안내할 수 있습니다.
         ResidentEntity resident = residentRepository.findById(residentNo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Resident not found."));
 
@@ -163,6 +168,7 @@ public class AppAuthService {
     }
 
     private boolean matchesPassword(String rawPassword, String savedPassword) {
+        // 운영 데이터는 BCrypt, 초기 샘플 데이터는 평문일 수 있어 두 형식을 모두 허용합니다.
         // BCrypt로 저장된 비밀번호와 기존 평문 샘플 비밀번호를 모두 처리한다.
         if (savedPassword != null && savedPassword.startsWith("$2")) {
             return passwordEncoder.matches(rawPassword, savedPassword);

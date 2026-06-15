@@ -57,6 +57,8 @@ public class PythonGateService {
 
     @Transactional
     public Map<String, Object> checkPlate(String plate, Integer apartmentNo) {
+        // 차단기 카메라가 번호판을 인식하면 이 메서드가 최종 개방 여부를 판단합니다.
+        // 입주민 차량은 주차율과 관계없이 허용하고, 방문차량은 설정/주차율 조건을 함께 확인합니다.
         String normalizedPlate = normalizePlate(plate);
         ResidentVehicleEntity residentVehicle = normalizedPlate != null ? findResidentVehicle(normalizedPlate) : null;
         RegisteredCarEntity visitorVehicle = normalizedPlate != null ? findVisitorVehicle(normalizedPlate) : null;
@@ -71,6 +73,7 @@ public class PythonGateService {
         boolean full = occupancy.available() <= 0 && occupancy.total() > 0;
         boolean overThreshold = occupancy.rate() >= GATE_OCCUPANCY_BLOCK_RATE;
         boolean blockedByOccupancy = isVisitorVehicle && occupancyBlockEnabled && (full || overThreshold);
+        // gateOpen이 Python 장비가 실제 차단기를 열지 말지 결정하는 최종 응답 값입니다.
         boolean gateOpen = forceOpenEnabled || isResidentVehicle || (isVisitorVehicle && !blockedByOccupancy);
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -113,6 +116,8 @@ public class PythonGateService {
 
     @Transactional
     public Map<String, Object> saveGateLog(Map<String, Object> request) {
+        // 차단기 통과 기록은 실제 개방 여부와 시간 정보를 gate_entry_log에 남깁니다.
+        // 방문차량은 차단기 통과 시점부터 만료 시간을 시작합니다.
         String plate = normalizePlate(firstText(request, "gate_plate", "c_number", "plate"));
         if (plate == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "plate or c_number is required.");
@@ -142,6 +147,7 @@ public class PythonGateService {
     }
 
     private void startVisitorExpirationIfGateOpened(String plate, boolean gateOpen, LocalDateTime gateTime) {
+        // 방문차량은 등록만 되어 있어도 실제 입구를 통과해야 만료 시간이 시작됩니다.
         if (!gateOpen) {
             return;
         }
@@ -170,6 +176,7 @@ public class PythonGateService {
 
     @Transactional
     public Map<String, Object> assignPlate(Map<String, Object> request) {
+        // 차단기에서 인식한 번호판을 UNKNOWN 상태의 주차 이력에 연결하는 자동 보정 로직입니다.
         Integer historyId = firstInteger(request, "history_id");
         String plate = normalizePlate(firstText(request, "plate", "c_number", "gate_plate"));
 
@@ -261,6 +268,7 @@ public class PythonGateService {
 
     @Transactional
     public Map<String, Object> saveDoubleParkingAlert(Map<String, Object> request) {
+        // Python/FastAPI가 OCR 실패, 이중주차 의심, 자동 매칭 실패를 관리자 알림으로 전달할 때 사용합니다.
         String alertType = firstText(request, "type", "alert_type");
         String normalizedType = limitText(alertType != null ? alertType.trim() : "gate_alert", 30);
         String plate = normalizePlate(firstText(request, "plate", "c_number", "gate_plate"));
@@ -428,6 +436,7 @@ public class PythonGateService {
         }
     }
     private Occupancy calculateOccupancy(ApartmentEntity apartment) {
+        // 차단기 판단에 쓰는 주차율은 통로 주차면이 아닌 일반 주차면만 기준으로 계산합니다.
         List<ParkingLotEntity> parkingLots = apartment != null && apartment.getNo() != null
                 ? parkingLotRepository.findByApartment_No(apartment.getNo())
                 : parkingLotRepository.findAll();

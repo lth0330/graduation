@@ -23,6 +23,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
+                // 프론트/앱/Python이 모두 JSON API로 호출하므로 서버 세션을 만들지 않는 JWT 방식으로 설정합니다.
                 // JWT 기반 API 서버라서 CSRF, Form Login, Basic Auth를 사용하지 않는다.
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {
@@ -31,6 +32,8 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
+                        // 공개 API, 앱 API, Python 장비 연동 API, 관리자 API의 접근 권한을 여기서 한 번에 관리합니다.
+                        // 새 API를 만들었는데 401/403이 발생하면 컨트롤러보다 이 권한 규칙을 먼저 확인합니다.
                         // 브라우저의 CORS 사전 요청은 인증 없이 통과시킨다.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 컨트롤러 예외가 /error로 전달될 때 원래 HTTP 상태 코드가 403으로 덮이지 않게 한다.
@@ -49,6 +52,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/apartments").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/app/parking-zones").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        // 라즈베리파이/FastAPI 장비는 JWT 로그인을 하지 않으므로 Python 연동 API는 공개로 둡니다.
+                        // 실제 운영에서는 장비용 API 키나 내부망 제한을 추가하는 것이 좋습니다.
                         // Python 객체인식/FastAPI 연동 API는 장비 서버에서 토큰 없이 호출한다.
                         .requestMatchers(HttpMethod.GET, "/api/parking/cars").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/parking/zone/{zoneName}").permitAll()
@@ -64,6 +69,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/gate/alert").permitAll()
                         .requestMatchers(path("/api/parking/**")).permitAll()
                         .requestMatchers(path("/api/gate/**")).permitAll()
+                        // Flutter 입주민 앱은 RESIDENT 권한의 JWT가 있어야 개인 정보와 알림 기능을 사용할 수 있습니다.
                         // 앱 입주민 기능은 RESIDENT 권한의 JWT가 있어야 사용할 수 있다.
                         .requestMatchers(HttpMethod.GET, "/api/user-info").hasRole("RESIDENT")
                         .requestMatchers(HttpMethod.POST, "/api/test-push").hasRole("RESIDENT")
@@ -75,6 +81,7 @@ public class SecurityConfig {
                         .requestMatchers(path("/api/waitlist")).hasRole("RESIDENT")
                         .requestMatchers(HttpMethod.POST, "/api/visitor-entry").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/parking-update").permitAll()
+                        // 웹 관리자와 아파트 관리자는 role이 다르므로 API 경로도 권한별로 분리합니다.
                         // 웹 관리자 화면은 관리자 권한별로 접근 범위를 분리한다.
                         .requestMatchers(path("/api/apartment-managers/dashboard/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/web-admin/**")).hasRole("WEB_ADMIN")
@@ -97,6 +104,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/apartment-managers/{managerNo}").hasAnyRole("WEB_ADMIN", "APARTMENT_MANAGER")
                         .anyRequest().authenticated()
                 )
+                // 요청마다 Authorization 헤더의 JWT를 읽어 SecurityContext에 인증 정보를 넣습니다.
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

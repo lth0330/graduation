@@ -20,6 +20,8 @@ public class JwtProvider {
     @Value("${jwt.expiration-ms:86400000}")
     private long expirationMs;
 
+    // 로그인 성공 시 프론트/앱에 내려줄 JWT를 생성합니다.
+    // userNo, role, apartmentNo는 이후 권한 검사와 자기 아파트 데이터 조회에 사용됩니다.
     public String generateToken(Integer userNo, UserRole role, Integer apartmentNo, String loginId) {
         return Jwts.builder()
                 .subject(String.valueOf(userNo))
@@ -33,6 +35,7 @@ public class JwtProvider {
                 .compact();
     }
 
+    // 토큰 서명과 만료 시간을 검증합니다. 실패하면 예외를 밖으로 던지지 않고 null을 반환합니다.
     public Claims validateToken(String token) {
         try {
             return Jwts.parser()
@@ -45,6 +48,7 @@ public class JwtProvider {
         }
     }
 
+    // Authorization 헤더는 "Bearer 토큰값" 형식이므로 앞의 Bearer 문자열을 제거한 뒤 검증합니다.
     public Claims extractFromHeader(String authorizationHeader) {
         if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
             return null;

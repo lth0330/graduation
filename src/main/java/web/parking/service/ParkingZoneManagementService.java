@@ -61,6 +61,7 @@ public class ParkingZoneManagementService {
         validateSaveRequest(requestDto);
         Integer layoutWidth = normalizeLayoutSize(requestDto.getLayoutWidth(), DEFAULT_LAYOUT_WIDTH);
         Integer layoutHeight = normalizeLayoutSize(requestDto.getLayoutHeight(), DEFAULT_LAYOUT_HEIGHT);
+        // 같은 주차장 안에서 주차면 배치가 겹치면 화면 Grid도 겹치므로 저장 전에 막습니다.
         validateOverlappingPlacement(
                 requestDto.getParkingLotNo(),
                 requestDto.getLayoutRow(),
@@ -97,6 +98,7 @@ public class ParkingZoneManagementService {
         ParkingZoneEntity parkingZone = findEntity(parkingZoneNo);
         
         // 💡 [핵심 3] 상태가 바뀌기 전의 과거 상태를 기억해 둡니다.
+        // 상태 변경 전 값을 저장해 두었다가, occupied/disabled에서 empty로 바뀐 경우 대기자 알림을 보냅니다.
         String oldStatus = parkingZone.getStatus();
         String newStatus = normalizeStatus(requestDto.getStatus());
 
@@ -113,6 +115,7 @@ public class ParkingZoneManagementService {
         if (!"empty".equals(oldStatus) && "empty".equals(newStatus)) {
             String slotName = parkingZone.getAreaNumber(); // 변경된 주차구역 이름
 
+            // 특정 구역 또는 전체 구역을 기다리는 사용자에게 한 번만 빈자리 알림을 보냅니다.
             waitingListRepository.findAll().stream()
                     .filter(w -> !w.getNotified() && (w.getTargetSlotId().equals("ALL") || w.getTargetSlotId().equals(slotName)))
                     .forEach(w -> {
@@ -160,6 +163,7 @@ public class ParkingZoneManagementService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "배치 가로와 세로는 1 이상이어야 합니다.");
         }
 
+        // 수정 시에는 자기 자신을 제외하고 다른 주차면과 새 배치가 겹치는지 검사합니다.
         validateOverlappingPlacement(
                 parkingZone.getParkingLot().getNo(),
                 requestDto.getLayoutRow(),
@@ -226,6 +230,7 @@ public class ParkingZoneManagementService {
             Integer layoutHeight,
             Integer currentZoneNo
     ) {
+        // 사각형 범위(row/column 시작~끝)가 하나라도 겹치면 같은 위치에 주차면이 두 개 생기므로 저장하지 않습니다.
         boolean overlaps = parkingZoneRepository.findByParkingLot_No(parkingLotNo)
                 .stream()
                 .filter(zone -> currentZoneNo == null || !currentZoneNo.equals(zone.getNo()))
@@ -290,6 +295,7 @@ public class ParkingZoneManagementService {
     }
 
     private ParkingZoneDto toDto(ParkingZoneEntity parkingZone) {
+        // 프론트 주차 상태 화면이 필요한 배치 정보와 현재 차량번호, 확인 이미지 경로를 한 DTO에 모읍니다.
         return ParkingZoneDto.builder()
                 .parkingZoneNo(parkingZone.getNo())
                 .parkingLotNo(parkingZone.getParkingLot() != null ? parkingZone.getParkingLot().getNo() : null)
@@ -308,6 +314,7 @@ public class ParkingZoneManagementService {
     }
 
     private String findActiveHistoryImagePath(ParkingZoneEntity parkingZone) {
+        // 현재 주차 중인 이력의 imagePath를 같이 내려주면 OCR 실패 이미지 확인 화면에서 바로 사용할 수 있습니다.
         if (parkingZone == null || parkingZone.getNo() == null) {
             return null;
         }

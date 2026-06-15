@@ -110,6 +110,8 @@ public class PythonParkingEventService {
 
     @Transactional
     public Map<String, Object> saveEntry(PythonParkingEntryRequestDto requestDto) {
+        // Python 객체인식 모듈이 차량 입차를 감지했을 때 호출되는 핵심 로직입니다.
+        // 주차면 상태, 방문차량 주차 시작 시간, 주차 이력, 알림/번호판 보정 데이터를 함께 갱신합니다.
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
 
@@ -120,6 +122,7 @@ public class PythonParkingEventService {
         String plate = normalizePlate(requestDto.getPlate());
         String parkType = normalizeParkType(requestDto.getParkType(), zone);
         String linkedZoneName = normalizeLinkedZone(requestDto.getLinkedZone());
+        // 이중주차처럼 두 구역이 연결되는 경우 linkedZone도 같이 점유 상태로 바꿉니다.
         ParkingZoneEntity linkedZone = findLinkedZoneIfNeeded(zone, parkType, linkedZoneName);
         ResidentVehicleEntity residentVehicle = findResidentVehicle(plate);
         RegisteredCarEntity visitorVehicle = findVisitorVehicle(plate);
@@ -153,8 +156,10 @@ public class PythonParkingEventService {
 
         ParkingHistoryEntity savedHistory = parkingHistoryRepository.save(history);
 
+        // 앱 주차 화면에서 사용하는 상태도 같은 이벤트 기준으로 맞춰 줍니다.
         appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_OCCUPIED, zone, linkedZone));
 
+        // OCR 결과가 불확실하면 관리자가 번호판을 확정할 수 있도록 검토 대기 데이터를 만듭니다.
         recordCorrectionReviewIfNeeded(requestDto, savedHistory, zone);
         createParkingNotificationIfNeeded(zone, savedHistory);
         return result("entry", zone, savedHistory);
@@ -162,6 +167,7 @@ public class PythonParkingEventService {
 
     @Transactional
     public Map<String, Object> saveExit(PythonParkingExitRequestDto requestDto) {
+        // 출차 이벤트는 진행 중인 PARKED 이력을 찾아 EXITED로 마감하고 주차면을 비웁니다.
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
         ParkingHistoryEntity history = findActiveHistory(zone);
@@ -182,6 +188,7 @@ public class PythonParkingEventService {
         synchronizeUsedSpaces(zone, linkedZone);
 
         appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_EMPTY, zone, linkedZone));
+        // 출차가 확인되면 해당 주차 이력에 묶인 관리자 알림은 더 이상 처리 대상이 아니므로 읽음 처리합니다.
         managerNotificationService.markReferenceAsRead(
                 resolveApartment(zone),
                 "parking_history",
@@ -193,6 +200,7 @@ public class PythonParkingEventService {
 
     @Transactional
     public Map<String, Object> updatePlate(PythonParkingPlateUpdateRequestDto requestDto) {
+        // 입차 당시 UNKNOWN이던 번호판을 이후 OCR/차단기 결과로 보정할 때 사용하는 로직입니다.
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
         ParkingHistoryEntity history = findActiveHistory(zone);
@@ -217,6 +225,7 @@ public class PythonParkingEventService {
             linkedZone.setStatusChangeReason("Python 객체인식 연결 주차칸 번호판 업데이트");
         }
         sendParkingCompleteNotificationIfNeeded(zone, previousPlate, residentVehicle);
+        // 보정 결과도 확신이 낮으면 관리자 검토 목록에 남겨 최종 확인을 받습니다.
         recordCorrectionReviewIfNeeded(requestDto, history, zone);
 
         return result("update", zone, history);
@@ -289,6 +298,8 @@ public class PythonParkingEventService {
     }
 
     private String resolveSnapshotPath(String imagePath, String imageBase64) {
+        // Python이 base64 이미지를 보내면 서버에 파일로 저장하고, 이미 경로가 있으면 그 경로를 그대로 사용합니다.
+        // 프론트는 저장된 /uploads/... 경로를 받아 OCR 실패 이미지를 표시합니다.
         if (imageBase64 != null && !imageBase64.isBlank()) {
             return parkingSnapshotStorageService.saveBase64Image(imageBase64);
         }
@@ -385,6 +396,8 @@ public class PythonParkingEventService {
     }
 
     private void synchronizeUsedSpaces(ParkingZoneEntity zone) {
+        // 통로 주차면(double_lane)은 실제 잔여 일반 주차면 계산에서 제외합니다.
+        // 차단기 80%/만차 판단이 일반 주차면 기준으로 동작하게 하기 위한 처리입니다.
         if (zone == null || zone.getParkingLot() == null || zone.getParkingLot().getNo() == null) {
             return;
         }
@@ -427,6 +440,7 @@ public class PythonParkingEventService {
     }
 
     private void createParkingNotificationIfNeeded(ParkingZoneEntity zone, ParkingHistoryEntity history) {
+        // 일반 주차가 아닌 다중 구역/통로 주차는 관리자가 확인해야 하므로 관리자 알림을 생성합니다.
         boolean multiZoneParking = PARK_TYPE_MULTI_ZONE.equals(history.getParkType());
         boolean doubleLaneParking = ZONE_TYPE_DOUBLE_LANE.equals(zone.getZoneType())
                 || PARK_TYPE_DOUBLE_LANE.equals(history.getParkType());
@@ -464,6 +478,7 @@ public class PythonParkingEventService {
             String previousPlate,
             ResidentVehicleEntity residentVehicle
     ) {
+        // UNKNOWN으로 들어왔던 차량이 입주민 차량으로 확정되면 앱 사용자에게 주차 완료 알림을 보냅니다.
         if (!UNKNOWN_PLATE.equals(previousPlate)
                 || residentVehicle == null
                 || residentVehicle.getResident() == null
