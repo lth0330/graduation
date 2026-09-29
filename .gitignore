@@ -57,6 +57,10 @@ src/main/resources/application.properties
 src/main/resources/application-secret.properties
 src/main/resources/firebase-key.json
 
+### Uploaded files ###
+# 서버 실행 중 저장되는 경력 이미지, 주차 스냅샷, 번호판 검토 이미지
+uploads/
+
 ### Logs ###
 *.log
 
