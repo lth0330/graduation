@@ -98,7 +98,8 @@ public class SecurityConfig {
                         .requestMatchers(path("/api/resident-inquiries/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(path("/api/manager-notifications/**")).hasRole("APARTMENT_MANAGER")
                         .requestMatchers(HttpMethod.GET, "/api/apartment-managers/{managerNo}/my-page").hasRole("APARTMENT_MANAGER")
-                        .requestMatchers(HttpMethod.PUT, "/api/apartment-managers/{managerNo}").hasRole("APARTMENT_MANAGER")
+                        // 아파트 관리자 본인 수정(마이페이지)과 웹 관리자의 관리자 정보 수정이 같은 API를 사용한다.
+                        .requestMatchers(HttpMethod.PUT, "/api/apartment-managers/{managerNo}").hasAnyRole("WEB_ADMIN", "APARTMENT_MANAGER")
                         .requestMatchers(HttpMethod.DELETE, "/api/apartment-managers/{managerNo}").hasRole("WEB_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/apartment-managers").hasRole("WEB_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/apartment-managers/{managerNo}").hasAnyRole("WEB_ADMIN", "APARTMENT_MANAGER")

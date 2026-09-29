@@ -137,6 +137,9 @@ public class ParkingZoneManagementService {
         }
         // =================================================================
 
+        // 관리자가 수동으로 상태를 바꿔도 대시보드 사용 대수가 맞도록 Python 이벤트와 같은 기준(일반 주차면의 occupied 수)으로 다시 계산한다.
+        synchronizeUsedSpaces(parkingZone.getParkingLot());
+
         return toDto(parkingZone);
     }
 
@@ -183,7 +186,23 @@ public class ParkingZoneManagementService {
     @Transactional
     public void delete(Integer parkingZoneNo) {
         // Delete: 주차구역을 삭제한다.
-        parkingZoneRepository.delete(findEntity(parkingZoneNo));
+        ParkingZoneEntity parkingZone = findEntity(parkingZoneNo);
+        ParkingLotEntity parkingLot = parkingZone.getParkingLot();
+        parkingZoneRepository.delete(parkingZone);
+        // 주차 중인 칸을 삭제하면 사용 대수도 줄어야 하므로 다시 계산한다.
+        synchronizeUsedSpaces(parkingLot);
+    }
+
+    private void synchronizeUsedSpaces(ParkingLotEntity parkingLot) {
+        if (parkingLot == null || parkingLot.getNo() == null) {
+            return;
+        }
+        long occupiedCount = parkingZoneRepository.countByParkingLot_NoAndZoneTypeAndStatus(
+                parkingLot.getNo(),
+                "normal",
+                "occupied"
+        );
+        parkingLot.setUsedSpaces((int) occupiedCount);
     }
 
     private ParkingZoneEntity findEntity(Integer parkingZoneNo) {

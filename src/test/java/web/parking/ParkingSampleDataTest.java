@@ -83,19 +83,30 @@ class ParkingSampleDataTest {
     }
 
     @Test
-    void sqlInitializationRunsResetBeforeSeedDataWhenEnabled() throws IOException {
+    void sampleDataIncludesPendingPlateCorrectionReviewDemo() throws IOException {
+        String sql = readProjectFile("src/main/resources/sql/data.sql");
+
+        assertThat(sql).contains(
+                "plate_correction_review",
+                "NEEDS_REVIEW",
+                "UNKNOWN",
+                "112보5273,37나5209,123가4567",
+                "/uploads/plate-review/demo-unknown.png"
+        );
+    }
+
+    @Test
+    void sqlInitializationUsesNonDestructiveSampleSchemaWhenEnabled() throws IOException {
         String properties = readProjectFile("src/main/resources/application.properties");
-        String resetSql = readProjectFile("src/main/resources/sql/reset.sql");
+        String sampleSchemaSql = readProjectFile("src/main/resources/sql/sample-schema.sql");
 
         assertThat(properties).contains(
-                "spring.sql.init.schema-locations=classpath:/sql/reset.sql",
+                "spring.sql.init.schema-locations=classpath:/sql/sample-schema.sql",
                 "spring.sql.init.data-locations=classpath:/sql/data.sql"
         );
-        assertThat(resetSql).contains(
-                "DELETE FROM plate_correction_review;",
-                "DELETE FROM parking_history;",
-                "DELETE FROM apartments;",
-                "ALTER TABLE parking_zone AUTO_INCREMENT = 1;"
+        assertThat(sampleSchemaSql).contains(
+                "This file intentionally does not reset or delete any data.",
+                "SELECT 1;"
         );
     }
 

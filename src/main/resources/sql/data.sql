@@ -162,16 +162,47 @@ WHERE NOT EXISTS (
     WHERE existing_user.u_id = sample.u_id
 );
 
+UPDATE `user`
+SET
+    u_name = CASE u_id
+        WHEN 'kangminsu' THEN '강민수'
+        WHEN 'yoonjiho' THEN '윤지호'
+        WHEN 'baekharin' THEN '백하린'
+        WHEN 'jangwoojin' THEN '장우진'
+        WHEN 'songyuna' THEN '송유나'
+        ELSE u_name
+    END,
+    u_email = CASE u_id
+        WHEN 'kangminsu' THEN 'kangminsu@example.com'
+        WHEN 'yoonjiho' THEN 'yoonjiho@example.com'
+        WHEN 'baekharin' THEN 'baekharin@example.com'
+        WHEN 'jangwoojin' THEN 'jangwoojin@example.com'
+        WHEN 'songyuna' THEN 'songyuna@example.com'
+        ELSE u_email
+    END
+WHERE u_id IN ('kangminsu', 'yoonjiho', 'baekharin', 'jangwoojin', 'songyuna');
+
 UPDATE car c
 JOIN `user` u ON u.u_no = c.u_no
-SET c.c_name = CASE u.u_id
-    WHEN 'kangminsu' THEN '강민수 차량'
-    WHEN 'yoonjiho' THEN '윤지호 차량'
-    WHEN 'baekharin' THEN '백하린 차량'
-    WHEN 'jangwoojin' THEN '장우진 차량'
-    WHEN 'songyuna' THEN '송유나 차량'
-    ELSE c.c_name
-END
+SET
+    c.c_name = CASE u.u_id
+        WHEN 'kangminsu' THEN '강민수 차량'
+        WHEN 'yoonjiho' THEN '윤지호 차량'
+        WHEN 'baekharin' THEN '백하린 차량'
+        WHEN 'jangwoojin' THEN '장우진 차량'
+        WHEN 'songyuna' THEN '송유나 차량'
+        ELSE c.c_name
+    END,
+    c.c_number = CASE u.u_id
+        WHEN 'kangminsu' THEN '112보5273'
+        WHEN 'yoonjiho' THEN '24조2426'
+        WHEN 'baekharin' THEN '78호12345'
+        WHEN 'jangwoojin' THEN '42바3579'
+        WHEN 'songyuna' THEN '37나5209'
+        ELSE c.c_number
+    END,
+    c.c_kind = '테스트차량',
+    c.c_note = '차단기 테스트용 입주민 차량'
 WHERE u.u_id IN ('kangminsu', 'yoonjiho', 'baekharin', 'jangwoojin', 'songyuna');
 
 -- 요청 샘플 차량 6대 중 5대는 입주민 차량(car), 1대는 방문 차량(registered_cars)으로 등록한다.
@@ -195,6 +226,20 @@ WHERE NOT EXISTS (
     WHERE existing_car.u_no = u.u_no
 );
 
+UPDATE car
+SET
+    c_kind = '테스트차량',
+    c_note = '차단기 테스트용 입주민 차량',
+    c_name = CASE c_number
+        WHEN '112보5273' THEN '강민수 차량'
+        WHEN '24조2426' THEN '윤지호 차량'
+        WHEN '78호12345' THEN '백하린 차량'
+        WHEN '42바3579' THEN '장우진 차량'
+        WHEN '37나5209' THEN '송유나 차량'
+        ELSE c_name
+    END
+WHERE c_number IN ('112보5273', '24조2426', '78호12345', '42바3579', '37나5209');
+
 INSERT INTO parking_lot (
     pl_no, a_no, pl_name, pl_floor, total_spaces, used_spaces
 )
@@ -206,8 +251,9 @@ ON DUPLICATE KEY UPDATE
     a_no = VALUES(a_no),
     pl_name = VALUES(pl_name),
     pl_floor = VALUES(pl_floor),
-    total_spaces = VALUES(total_spaces),
-    used_spaces = VALUES(used_spaces);
+    -- used_spaces는 주차칸 상태에 맞춰 서버가 계산하는 값이다.
+    -- 재시작할 때마다 0으로 덮으면 주차칸 상태는 그대로인데 대시보드 사용 대수만 0이 되므로 갱신하지 않는다.
+    total_spaces = VALUES(total_spaces);
 
 INSERT INTO parking_zone (
     pz_no, pl_no, area_number, location, status, zone_type, layout_row, layout_column,
@@ -224,7 +270,15 @@ VALUES
     (8, 1, 'a-b1-008', 'B1 8번 통로 주차칸', 'empty', 'double_lane', 3, 4, 2, 1, '초기 등록', NULL),
     (9, 1, 'a-b1-009', 'B1 9번 통로 주차칸', 'empty', 'double_lane', 3, 7, 2, 1, '초기 등록', NULL)
 ON DUPLICATE KEY UPDATE
-    pz_no = pz_no;
+    pl_no = VALUES(pl_no),
+    area_number = VALUES(area_number),
+    location = VALUES(location),
+    zone_type = VALUES(zone_type),
+    layout_row = VALUES(layout_row),
+    layout_column = VALUES(layout_column),
+    layout_width = VALUES(layout_width),
+    layout_height = VALUES(layout_height),
+    status_change_reason = VALUES(status_change_reason);
 
 INSERT INTO registered_cars (
     v_no, u_no, c_number, reg_time, park_time, expire_date
@@ -234,7 +288,11 @@ VALUES
     (1, 2, '22허2026', '2026-05-08 09:00:00', NULL, NULL),
     (2, 2, '33호3030', '2026-05-08 11:10:00', '2026-05-08 12:00:00', '2026-05-09 12:00:00')
 ON DUPLICATE KEY UPDATE
-    v_no = v_no;
+    u_no = VALUES(u_no),
+    c_number = VALUES(c_number),
+    reg_time = VALUES(reg_time),
+    park_time = VALUES(park_time),
+    expire_date = VALUES(expire_date);
 
 -- 요청 샘플 방문 차량 1대.
 -- 이미 kangminsu 방문차량이 있으면 서버 재시작 때 덮어쓰지 않는다.
@@ -247,6 +305,68 @@ WHERE u.u_id = 'kangminsu'
       WHERE existing_visitor_car.u_no = u.u_no
   );
 
+UPDATE registered_cars rc
+JOIN `user` u ON u.u_no = rc.u_no
+SET
+    rc.c_number = '123가4567',
+    rc.reg_time = '2026-06-04 10:00:00',
+    rc.park_time = NULL,
+    rc.expire_date = NULL
+WHERE u.u_id = 'kangminsu';
+
+-- 발표/스크린샷용 번호판 보정 대기 샘플.
+-- 실제 하드웨어 없이도 OCR 실패 후 관리자가 이미지를 보고 번호판을 확정하는 흐름을 보여준다.
+INSERT INTO parking_history (
+    history_id, pz_no, c_no, v_no, history_zone, history_plate,
+    history_entry_time, history_exit_time, history_status, park_type, linked_zone, image_path
+)
+SELECT
+    9001, pz.pz_no, NULL, NULL, pz.area_number, 'UNKNOWN',
+    '2026-06-04 10:25:00', NULL, 'PARKED', 'double_lane', NULL,
+    '/uploads/plate-review/demo-unknown.png'
+FROM parking_zone pz
+WHERE pz.pz_no = 7
+ON DUPLICATE KEY UPDATE
+    pz_no = VALUES(pz_no),
+    c_no = VALUES(c_no),
+    v_no = VALUES(v_no),
+    history_zone = VALUES(history_zone),
+    history_plate = VALUES(history_plate),
+    history_entry_time = VALUES(history_entry_time),
+    history_exit_time = VALUES(history_exit_time),
+    history_status = VALUES(history_status),
+    park_type = VALUES(park_type),
+    linked_zone = VALUES(linked_zone),
+    image_path = VALUES(image_path);
+
+UPDATE parking_zone
+SET
+    status = 'occupied',
+    current_car_number = 'UNKNOWN',
+    status_change_reason = '발표용 OCR 실패 번호판 보정 샘플'
+WHERE pz_no = 7;
+
+INSERT INTO plate_correction_review (
+    review_id, a_no, history_id, zone_name, ocr_plate, matched_plate,
+    selected_plate, candidate_list, match_distance, review_status, created_at, resolved_at
+)
+VALUES
+    (9001, 1, 9001, 'a-b1-007', 'UNKNOWN', '112보5273',
+     NULL, '112보5273,37나5209,123가4567', 1, 'NEEDS_REVIEW',
+     '2026-06-04 10:26:00', NULL)
+ON DUPLICATE KEY UPDATE
+    a_no = VALUES(a_no),
+    history_id = VALUES(history_id),
+    zone_name = VALUES(zone_name),
+    ocr_plate = VALUES(ocr_plate),
+    matched_plate = VALUES(matched_plate),
+    selected_plate = VALUES(selected_plate),
+    candidate_list = VALUES(candidate_list),
+    match_distance = VALUES(match_distance),
+    review_status = VALUES(review_status),
+    created_at = VALUES(created_at),
+    resolved_at = VALUES(resolved_at);
+
 INSERT INTO notifications (
     noti_no, u_no, noti_type, noti_title, noti_message, is_read, created_at
 )
@@ -254,7 +374,12 @@ VALUES
     (1, 2, 'visitor', '방문 차량 입차 알림', '[33호3030] 방문 차량이 주차장에 들어왔습니다.', 0, '2026-05-08 12:00:00'),
     (2, 2, 'parking', '주차구역 상태 변경', 'a-b1-002 구역이 비어 있음으로 변경되었습니다.', 1, '2026-05-08 13:30:00')
 ON DUPLICATE KEY UPDATE
-    noti_no = noti_no;
+    u_no = VALUES(u_no),
+    noti_type = VALUES(noti_type),
+    noti_title = VALUES(noti_title),
+    noti_message = VALUES(noti_message),
+    is_read = VALUES(is_read),
+    created_at = VALUES(created_at);
 
 INSERT INTO manager_notification (
     notification_no, m_no, a_no, notification_type, title, message,
@@ -268,7 +393,34 @@ VALUES
      '일반 주차칸이 남아 있는 상태에서 통로 주차가 감지되었습니다.',
      'parking_history', NULL, 0, '2026-05-28 09:10:00')
 ON DUPLICATE KEY UPDATE
-    notification_no = notification_no;
+    m_no = VALUES(m_no),
+    a_no = VALUES(a_no),
+    notification_type = VALUES(notification_type),
+    title = VALUES(title),
+    message = VALUES(message),
+    reference_type = VALUES(reference_type),
+    reference_id = VALUES(reference_id),
+    is_read = VALUES(is_read),
+    created_at = VALUES(created_at);
+
+INSERT INTO manager_notification (
+    notification_no, m_no, a_no, notification_type, title, message,
+    reference_type, reference_id, is_read, created_at
+)
+VALUES
+    (9001, 1, 1, 'plate_review_required', '번호판 확인 필요',
+     'a-b1-007 구역 OCR 결과가 UNKNOWN입니다. 관리자가 이미지 확인 후 실제 차량번호를 확정해야 합니다.',
+     'plate_correction_review', 9001, 0, '2026-06-04 10:26:00')
+ON DUPLICATE KEY UPDATE
+    m_no = VALUES(m_no),
+    a_no = VALUES(a_no),
+    notification_type = VALUES(notification_type),
+    title = VALUES(title),
+    message = VALUES(message),
+    reference_type = VALUES(reference_type),
+    reference_id = VALUES(reference_id),
+    is_read = VALUES(is_read),
+    created_at = VALUES(created_at);
 
 INSERT INTO device_info (
     device_id, u_no, fcm_token, os_type, last_login
@@ -313,7 +465,14 @@ VALUES
      'answered', '입주민 문의 등록 시 관리자 알림 테이블에 저장되도록 처리되어 있습니다.',
      '2026-05-12 09:30:00', '2026-05-12 10:05:00')
 ON DUPLICATE KEY UPDATE
-    inquiry_no = inquiry_no;
+    m_no = VALUES(m_no),
+    title = VALUES(title),
+    category = VALUES(category),
+    content = VALUES(content),
+    status = VALUES(status),
+    answer = VALUES(answer),
+    created_at = VALUES(created_at),
+    answered_at = VALUES(answered_at);
 
 INSERT INTO resident_inquiry (
     inquiry_no, u_no, c_no, title, content, status, answer, created_at, answered_at
@@ -327,4 +486,11 @@ VALUES
     (6, 6, 7, '가입 승인 대기 중 차량 문의', '가입 승인 대기 상태에서도 차량 정보를 미리 등록할 수 있는지 확인 부탁드립니다.', 'pending', NULL, '2026-05-11 13:35:00', NULL),
     (7, 4, NULL, '주차 대기 알림 문의', '주차칸이 비었을 때 대기 신청자에게 알림이 가는지 문의드립니다.', 'answered', '대기 신청 기능과 사용자 알림 테이블을 통해 처리할 수 있습니다.', '2026-05-12 15:00:00', '2026-05-12 15:40:00')
 ON DUPLICATE KEY UPDATE
-    inquiry_no = inquiry_no;
+    u_no = VALUES(u_no),
+    c_no = VALUES(c_no),
+    title = VALUES(title),
+    content = VALUES(content),
+    status = VALUES(status),
+    answer = VALUES(answer),
+    created_at = VALUES(created_at),
+    answered_at = VALUES(answered_at);

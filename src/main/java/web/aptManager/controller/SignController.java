@@ -1,10 +1,12 @@
 package web.aptManager.controller;
 
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -19,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import web.aptManager.dto.ApartmentManagerSignupRequestDto;
 import web.aptManager.dto.SignDto;
 import web.aptManager.service.SignService;
+import web.common.auth.ManagerAccessGuard;
 
 @RestController
 @RequestMapping("/api/apartment-managers")
@@ -54,13 +57,26 @@ public class SignController {
 
     @GetMapping("/{managerNo}")
     // Read: 관리자 번호로 상세 정보를 조회한다.
-    public ResponseEntity<SignDto> findByNo(@PathVariable Integer managerNo) {
+    public ResponseEntity<SignDto> findByNo(
+            @AuthenticationPrincipal Map<String, Object> principal,
+            @PathVariable Integer managerNo
+    ) {
+        ManagerAccessGuard.checkSelfOrWebAdmin(principal, managerNo);
         return ResponseEntity.ok(signService.findByNo(managerNo));
     }
 
     @PutMapping("/{managerNo}")
     // Update: 관리자 기본 정보를 수정한다.
-    public ResponseEntity<SignDto> update(@PathVariable Integer managerNo, @RequestBody SignDto signDto) {
+    public ResponseEntity<SignDto> update(
+            @AuthenticationPrincipal Map<String, Object> principal,
+            @PathVariable Integer managerNo,
+            @RequestBody SignDto signDto
+    ) {
+        ManagerAccessGuard.checkSelfOrWebAdmin(principal, managerNo);
+        // 아파트 관리자가 스스로 소속 아파트를 바꾸면 다른 아파트 데이터에 접근할 수 있으므로 웹 관리자만 변경한다.
+        if (!ManagerAccessGuard.isWebAdmin(principal)) {
+            signDto.setApartmentNo(null);
+        }
         return ResponseEntity.ok(signService.update(managerNo, signDto));
     }
 
