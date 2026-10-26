@@ -9,6 +9,8 @@ public interface PlateCorrectionReviewRepository extends JpaRepository<PlateCorr
 
     List<PlateCorrectionReviewEntity> findByApartment_NoAndStatusOrderByCreatedAtDesc(Integer apartmentNo, String status);
 
+    List<PlateCorrectionReviewEntity> findByParkingHistory_IdAndStatus(Integer historyId, String status);
+
     Optional<PlateCorrectionReviewEntity> findFirstByParkingHistory_IdAndStatusOrderByCreatedAtDesc(
             Integer historyId,
             String status

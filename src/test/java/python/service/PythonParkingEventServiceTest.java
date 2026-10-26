@@ -314,6 +314,44 @@ class PythonParkingEventServiceTest {
     }
 
     @Test
+    void saveExitIgnoresResentExitOlderThanCurrentCarEntry() {
+        ServiceFixture fixture = new ServiceFixture();
+        ParkingZoneEntity zone = ParkingZoneEntity.builder()
+                .no(1)
+                .areaNumber("a-b1-001")
+                .status("occupied")
+                .zoneType("normal")
+                .currentCarNumber("34나5678")
+                .build();
+        // 14:00:00에 이전 차가 나간 뒤 14:01:00에 새 차가 들어온 상태
+        ParkingHistoryEntity newCarHistory = ParkingHistoryEntity.builder()
+                .id(102)
+                .parkingZone(zone)
+                .zoneSnapshot("a-b1-001")
+                .plate("34나5678")
+                .status("PARKED")
+                .entryTime(java.time.LocalDateTime.of(2026, 10, 26, 14, 1, 0))
+                .build();
+
+        when(fixture.parkingZoneRepository.findByAreaNumber("a-b1-001")).thenReturn(Optional.of(zone));
+        when(fixture.parkingHistoryRepository.findFirstByParkingZone_NoAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(
+                1,
+                "PARKED"
+        )).thenReturn(Optional.of(newCarHistory));
+
+        python.dto.PythonParkingExitRequestDto requestDto = new python.dto.PythonParkingExitRequestDto();
+        requestDto.setZone("a-b1-001");
+        requestDto.setExitTime("2026-10-26 14:00:00");
+
+        Map<String, Object> result = fixture.service.saveExit(requestDto);
+
+        assertThat(result.get("result")).isEqualTo("ignored");
+        assertThat(zone.getStatus()).isEqualTo("occupied");
+        assertThat(newCarHistory.getStatus()).isEqualTo("PARKED");
+        assertThat(newCarHistory.getExitTime()).isNull();
+    }
+
+    @Test
     void updatePlateStoresImagePathCreatedFromImageBase64OnActiveHistory() {
         ServiceFixture fixture = new ServiceFixture();
         ParkingZoneEntity zone = ParkingZoneEntity.builder()

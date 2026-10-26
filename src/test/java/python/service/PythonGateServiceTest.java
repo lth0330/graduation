@@ -85,7 +85,8 @@ class PythonGateServiceTest {
                 apartmentRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                mock(AppNotificationRepository.class)
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
         );
 
         Map<String, Object> result = service.checkPlate("12가1234", 1);
@@ -149,7 +150,8 @@ class PythonGateServiceTest {
                 apartmentRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                mock(AppNotificationRepository.class)
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
         );
 
         Map<String, Object> result = service.checkPlate("12가1234", 1);
@@ -196,7 +198,8 @@ class PythonGateServiceTest {
                 apartmentRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                mock(AppNotificationRepository.class)
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
         );
 
         Map<String, Object> result = service.checkPlate("37나 5209", 1);
@@ -239,7 +242,8 @@ class PythonGateServiceTest {
                 apartmentRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                mock(AppNotificationRepository.class)
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
         );
 
         Map<String, Object> result = service.checkPlate("37나5209", 1);
@@ -285,7 +289,8 @@ class PythonGateServiceTest {
                 apartmentRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                mock(AppNotificationRepository.class)
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
         );
 
         service.checkPlate("37나5209", 1);
@@ -327,7 +332,8 @@ class PythonGateServiceTest {
                 apartmentRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                mock(AppNotificationRepository.class)
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
         );
 
         service.saveGateLog(Map.of(
@@ -377,7 +383,8 @@ class PythonGateServiceTest {
                 apartmentRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                mock(AppNotificationRepository.class)
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
         );
 
         service.saveDoubleParkingAlert(Map.of(
@@ -434,7 +441,8 @@ class PythonGateServiceTest {
                 apartmentRepository,
                 managerNotificationService,
                 appResidentFeatureService,
-                mock(AppNotificationRepository.class)
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
         );
 
         service.saveDoubleParkingAlert(Map.of(
