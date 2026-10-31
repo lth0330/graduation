@@ -88,6 +88,8 @@ public class ApartmentManagerEntity {
         return SignDto.builder()
                 .managerNo(no)
                 .apartmentNo(apartment != null ? apartment.getNo() : null)
+                // 웹 관리자 "관리자 정보 관리" 목록의 아파트 이름 열에 쓰인다 (빠져 있어서 모두 '-'로 보였음)
+                .apartmentName(apartment != null ? apartment.getName() : null)
                 .loginId(loginId)
                 .email(email)
                 .phone(phone)
