@@ -31,6 +31,10 @@ import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
+import web.common.type.ApprovalStatus;
+import web.parking.entity.ParkingHistoryEntity;
+import org.springframework.web.server.ResponseStatusException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PythonGateServiceTest {
 
@@ -459,6 +463,101 @@ class PythonGateServiceTest {
                 eq("gate_alert"),
                 anyInt()
         );
+    }
+
+    private PythonGateService gateService(
+            ResidentVehicleRepository residentVehicleRepository,
+            ParkingHistoryRepository parkingHistoryRepository,
+            ApartmentRepository apartmentRepository,
+            AppResidentFeatureService appResidentFeatureService
+    ) {
+        return new PythonGateService(
+                residentVehicleRepository,
+                mock(RegisteredCarRepository.class),
+                parkingHistoryRepository,
+                mock(GateEntryLogRepository.class),
+                mock(ParkingLotRepository.class),
+                mock(ParkingZoneRepository.class),
+                apartmentRepository,
+                mock(ManagerNotificationService.class),
+                appResidentFeatureService,
+                mock(AppNotificationRepository.class),
+                mock(PlateCorrectionReviewService.class)
+        );
+    }
+
+    @Test
+    void checkPlateKeepsGateClosedForRejectedOrPendingResidentVehicle() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        ApartmentRepository apartmentRepository = mock(ApartmentRepository.class);
+        AppResidentFeatureService appResidentFeatureService = mock(AppResidentFeatureService.class);
+        ApartmentEntity apartment = ApartmentEntity.builder().no(1).name("테스트아파트").build();
+        ResidentEntity rejected = ResidentEntity.builder().no(7).apartment(apartment)
+                .approvalStatus(ApprovalStatus.REJECTED).build();
+        ResidentEntity pending = ResidentEntity.builder().no(8).apartment(apartment)
+                .approvalStatus(ApprovalStatus.PENDING).build();
+        when(apartmentRepository.findById(1)).thenReturn(Optional.of(apartment));
+        when(residentVehicleRepository.findByNumber("22사9900")).thenReturn(Optional.of(
+                ResidentVehicleEntity.builder().number("22사9900").resident(rejected).build()));
+        when(residentVehicleRepository.findByNumber("11바7788")).thenReturn(Optional.of(
+                ResidentVehicleEntity.builder().number("11바7788").resident(pending).build()));
+
+        PythonGateService service = gateService(residentVehicleRepository, mock(ParkingHistoryRepository.class),
+                apartmentRepository, appResidentFeatureService);
+
+        for (String plate : List.of("22사9900", "11바7788")) {
+            Map<String, Object> result = service.checkPlate(plate, 1);
+            assertThat(result.get("gate_open")).isEqualTo(false);
+            assertThat(result.get("is_registered")).isEqualTo(false);
+            assertThat(result.get("reason")).isEqualTo("가입 승인되지 않았거나 다른 아파트 입주민의 차량입니다.");
+        }
+        verify(appResidentFeatureService, never()).sendPushToResident(anyInt(), contains("입차"), contains("통과"));
+    }
+
+    @Test
+    void checkPlateKeepsGateClosedForOtherApartmentResidentVehicle() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        ApartmentRepository apartmentRepository = mock(ApartmentRepository.class);
+        ApartmentEntity gateApartment = ApartmentEntity.builder().no(1).name("성결아파트").build();
+        ApartmentEntity otherApartment = ApartmentEntity.builder().no(4).name("스카이 빌리지").build();
+        ResidentEntity resident = ResidentEntity.builder().no(20).apartment(otherApartment)
+                .approvalStatus(ApprovalStatus.APPROVED).build();
+        when(apartmentRepository.findById(1)).thenReturn(Optional.of(gateApartment));
+        when(residentVehicleRepository.findByNumber("12가3456")).thenReturn(Optional.of(
+                ResidentVehicleEntity.builder().number("12가3456").resident(resident).build()));
+
+        PythonGateService service = gateService(residentVehicleRepository, mock(ParkingHistoryRepository.class),
+                apartmentRepository, mock(AppResidentFeatureService.class));
+
+        Map<String, Object> result = service.checkPlate("12가3456", 1);
+
+        assertThat(result.get("gate_open")).isEqualTo(false);
+        assertThat(result.get("is_resident_vehicle")).isEqualTo(false);
+    }
+
+    @Test
+    void assignPlateRejectsExitedHistoryWithoutTouchingZone() {
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        ParkingZoneEntity zone = normalZone(null, "a-b1-003", "occupied");
+        zone.setCurrentCarNumber("789호1234");
+        ParkingHistoryEntity exited = ParkingHistoryEntity.builder()
+                .id(301)
+                .parkingZone(zone)
+                .zoneSnapshot("a-b1-003")
+                .plate("UNKNOWN")
+                .status("EXITED")
+                .exitTime(LocalDateTime.now())
+                .build();
+        when(parkingHistoryRepository.findById(301)).thenReturn(Optional.of(exited));
+
+        PythonGateService service = gateService(mock(ResidentVehicleRepository.class), parkingHistoryRepository,
+                mock(ApartmentRepository.class), mock(AppResidentFeatureService.class));
+
+        assertThatThrownBy(() -> service.assignPlate(Map.of("history_id", 301, "plate", "37나5209")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("409");
+        assertThat(zone.getCurrentCarNumber()).isEqualTo("789호1234");
+        assertThat(exited.getPlate()).isEqualTo("UNKNOWN");
     }
 
     private ParkingZoneEntity normalZone(ParkingLotEntity parkingLot, String areaNumber, String status) {
