@@ -14,7 +14,9 @@ import web.dashboard.dto.WebAdminDashboardSummaryDto;
 import web.inquiry.repository.ManagerInquiryRepository;
 import web.inquiry.repository.ResidentInquiryRepository;
 import web.parking.entity.ParkingLotEntity;
+import web.parking.entity.ParkingZoneEntity;
 import web.parking.repository.ParkingLotRepository;
+import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.repository.ResidentRepository;
 
@@ -24,11 +26,15 @@ import web.resident.repository.ResidentRepository;
 // 대시보드 서비스: 관리자 화면에 필요한 집계 데이터를 조회한다.
 public class DashboardService {
 
+    private static final String STATUS_OCCUPIED = "occupied";
+    private static final String ZONE_TYPE_NORMAL = "normal";
+
     private final ApartmentManagerRepository apartmentManagerRepository;
     private final ManagerInquiryRepository managerInquiryRepository;
     private final ResidentRepository residentRepository;
     private final ResidentVehicleRepository residentVehicleRepository;
     private final ParkingLotRepository parkingLotRepository;
+    private final ParkingZoneRepository parkingZoneRepository;
     private final ResidentInquiryRepository residentInquiryRepository;
 
     public WebAdminDashboardSummaryDto getWebAdminSummary() {
@@ -43,17 +49,19 @@ public class DashboardService {
     public ApartmentManagerDashboardSummaryDto getApartmentManagerSummary(Map<String, Object> principal) {
         // Read: 로그인한 아파트 관리자의 아파트 기준 입주민/차량/주차/문의 통계를 계산한다.
         Integer apartmentNo = getInteger(principal, "apartmentNo");
-        List<ParkingLotEntity> parkingLots = parkingLotRepository.findByApartment_No(apartmentNo);
-        int totalParkingSpaces = parkingLots.stream()
-                .map(ParkingLotEntity::getTotalSpaces)
-                .filter(value -> value != null)
-                .mapToInt(Integer::intValue)
-                .sum();
-        int usedParkingSpaces = parkingLots.stream()
-                .map(ParkingLotEntity::getUsedSpaces)
-                .filter(value -> value != null)
-                .mapToInt(Integer::intValue)
-                .sum();
+        // 사용률은 실제 주차면 상태로 계산한다. 차단기 만차 판단(PythonGateService)과 같은 기준: 일반 주차면만.
+        // 예전에는 주차장에 적어 둔 total_spaces(통로 칸 포함)와 used_spaces(일반 칸만)를 섞어 써서
+        // 주차 현황 화면·차단기 판단과 숫자가 어긋났음.
+        List<ParkingZoneEntity> normalZones = parkingLotRepository.findByApartment_No(apartmentNo).stream()
+                .map(ParkingLotEntity::getNo)
+                .filter(parkingLotNo -> parkingLotNo != null)
+                .flatMap(parkingLotNo -> parkingZoneRepository.findByParkingLot_No(parkingLotNo).stream())
+                .filter(this::isNormalZone)
+                .toList();
+        int totalParkingSpaces = normalZones.size();
+        int usedParkingSpaces = (int) normalZones.stream()
+                .filter(zone -> STATUS_OCCUPIED.equals(zone.getStatus()))
+                .count();
         int parkingUsageRate = totalParkingSpaces > 0
                 ? Math.round((usedParkingSpaces * 100.0f) / totalParkingSpaces)
                 : 0;
@@ -67,6 +75,11 @@ public class DashboardService {
                 .parkingUsageRate(parkingUsageRate)
                 .pendingResidentInquiryCount(residentInquiryRepository.countByResident_Apartment_NoAndStatus(apartmentNo, "pending"))
                 .build();
+    }
+
+    private boolean isNormalZone(ParkingZoneEntity zone) {
+        String zoneType = zone.getZoneType();
+        return zoneType == null || zoneType.isBlank() || ZONE_TYPE_NORMAL.equals(zoneType);
     }
 
     private Integer getInteger(Map<String, Object> principal, String key) {
