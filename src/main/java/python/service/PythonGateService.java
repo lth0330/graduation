@@ -26,6 +26,8 @@ import web.parking.repository.ParkingHistoryRepository;
 import web.parking.repository.ParkingLotRepository;
 import web.parking.repository.ParkingZoneRepository;
 import web.parking.repository.ResidentVehicleRepository;
+import web.common.type.ApprovalStatus;
+import web.resident.entity.ResidentEntity;
 import web.notification.entity.ManagerNotificationEntity;
 import web.notification.service.ManagerNotificationService;
 import app.service.AppResidentFeatureService;
@@ -41,6 +43,7 @@ public class PythonGateService {
     private static final String UNKNOWN_PLATE = "UNKNOWN";
     private static final String STATUS_OCCUPIED = "occupied";
     private static final String ZONE_TYPE_NORMAL = "normal";
+    private static final String ZONE_TYPE_DOUBLE_LANE = "double_lane";
     private static final double GATE_OCCUPANCY_BLOCK_RATE = 0.8;
     private static final DateTimeFormatter PYTHON_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -61,13 +64,19 @@ public class PythonGateService {
         // 차단기 카메라가 번호판을 인식하면 이 메서드가 최종 개방 여부를 판단합니다.
         // 입주민 차량은 주차율과 관계없이 허용하고, 방문차량은 설정/주차율 조건을 함께 확인합니다.
         String normalizedPlate = normalizePlate(plate);
-        ResidentVehicleEntity residentVehicle = normalizedPlate != null ? findResidentVehicle(normalizedPlate) : null;
+        ResidentVehicleEntity foundResidentVehicle = normalizedPlate != null ? findResidentVehicle(normalizedPlate) : null;
+        // 가입 승인 대기·반려된 입주민의 차량은 입주민 차량으로 보지 않는다.
+        ResidentVehicleEntity residentVehicle = isApprovedResidentVehicle(foundResidentVehicle) ? foundResidentVehicle : null;
         RegisteredCarEntity visitorVehicle = normalizedPlate != null ? findVisitorVehicle(normalizedPlate) : null;
+
+        ApartmentEntity apartment = findGateApartment(apartmentNo, residentVehicle, visitorVehicle);
+        // 다른 아파트 입주민의 차량도 이 아파트 차단기에서는 입주민 차량이 아니다.
+        if (!belongsToApartment(residentVehicle, apartment)) {
+            residentVehicle = null;
+        }
         boolean isResidentVehicle = residentVehicle != null;
         boolean isVisitorVehicle = visitorVehicle != null;
         boolean isRegistered = isResidentVehicle || isVisitorVehicle;
-
-        ApartmentEntity apartment = findGateApartment(apartmentNo, residentVehicle, visitorVehicle);
         boolean occupancyBlockEnabled = isOccupancyBlockEnabled(apartment);
         boolean forceOpenEnabled = isForceOpenEnabled(apartment);
         Occupancy occupancy = calculateOccupancy(apartment);
@@ -91,10 +100,12 @@ public class PythonGateService {
         response.put("used", occupancy.used());
         response.put("available", occupancy.available());
         response.put("rate", occupancy.rate());
-        response.put("reason", buildGateReason(
-                isRegistered, isResidentVehicle, isVisitorVehicle, gateOpen,
-                occupancyBlockEnabled, forceOpenEnabled, full, overThreshold
-        ));
+        response.put("reason", foundResidentVehicle != null && !isRegistered && !forceOpenEnabled
+                ? "가입 승인되지 않았거나 다른 아파트 입주민의 차량입니다."
+                : buildGateReason(
+                        isRegistered, isResidentVehicle, isVisitorVehicle, gateOpen,
+                        occupancyBlockEnabled, forceOpenEnabled, full, overThreshold
+                ));
         // 👇 변경 코드: 방문자 차량 정보도 함께 넘겨줍니다.
         sendGateEntryNotificationIfNeeded(residentVehicle, visitorVehicle, gateOpen);
         return response;
@@ -190,6 +201,10 @@ public class PythonGateService {
 
         ParkingHistoryEntity history = parkingHistoryRepository.findById(historyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "주차 기록을 찾을 수 없습니다."));
+        // 역추적 중에 차가 나갔다면 그 칸에는 다른 차가 있거나 비어 있으므로 번호를 붙이지 않는다.
+        if (!HISTORY_PARKED.equals(history.getStatus()) || history.getExitTime() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 출차한 주차 기록에는 번호판을 연결할 수 없습니다.");
+        }
 
         history.setPlate(plate);
         history.setResidentVehicle(findResidentVehicle(plate));
@@ -205,7 +220,7 @@ public class PythonGateService {
             // =========================================================
             // 💡 1. 구역별 알림 지능형 분기 처리
             // =========================================================
-            if (zone.getAreaNumber().contains("통로") || zone.getAreaNumber().matches(".*a-b1-00[789].*")) {
+            if (isDoubleLaneZone(zone)) {
                 // [이중주차 구역인 경우]
                 if (history.getResidentVehicle() != null && history.getResidentVehicle().getResident() != null) {
                     Integer residentNo = history.getResidentVehicle().getResident().getNo();
@@ -303,7 +318,7 @@ public class PythonGateService {
         // =========================================================
         // 💡 2. 의심 알림 제어 로직
         // =========================================================
-        if (zoneName != null && (zoneName.contains("통로") || zoneName.matches(".*a-b1-00[789].*"))) {
+        if (zoneName != null && isDoubleLaneZoneName(zoneName)) {
             if (candidates != null && !candidates.isEmpty() && !ocrError) {
                 Occupancy occupancy = calculateOccupancy(apartment);
                 if (occupancy.available() > 0) { // 만차가 아닐 때만
@@ -406,6 +421,27 @@ public class PythonGateService {
                 .orElse(null);
     }
 
+    private boolean isApprovedResidentVehicle(ResidentVehicleEntity vehicle) {
+        if (vehicle == null) {
+            return false;
+        }
+        ResidentEntity resident = vehicle.getResident();
+        // 승인 상태가 없는 예전 데이터는 막지 않고, 명시적으로 대기·반려인 경우만 제외한다.
+        return resident == null
+                || resident.getApprovalStatus() == null
+                || resident.getApprovalStatus() == ApprovalStatus.APPROVED;
+    }
+
+    private boolean belongsToApartment(ResidentVehicleEntity vehicle, ApartmentEntity apartment) {
+        if (vehicle == null || apartment == null || apartment.getNo() == null) {
+            return true;
+        }
+        ApartmentEntity vehicleApartment = vehicle.getResident() != null ? vehicle.getResident().getApartment() : null;
+        return vehicleApartment == null
+                || vehicleApartment.getNo() == null
+                || apartment.getNo().equals(vehicleApartment.getNo());
+    }
+
     private ApartmentEntity findGateApartment(Integer apartmentNo, ResidentVehicleEntity residentVehicle, RegisteredCarEntity visitorVehicle) {
         if (apartmentNo != null) return apartmentRepository.findById(apartmentNo).orElse(null);
         if (residentVehicle != null && residentVehicle.getResident() != null) return residentVehicle.getResident().getApartment();
@@ -454,6 +490,27 @@ public class PythonGateService {
         int available = Math.max(total - used, 0);
         double rate = total > 0 ? (double) used / total : 0.0;
         return new Occupancy(total, used, available, rate);
+    }
+
+    // 통로(이중주차) 칸 여부는 칸 종류(double_lane)로 판단한다. 종류가 없는 예전 데이터만 이름으로 판단.
+    private boolean isDoubleLaneZone(ParkingZoneEntity zone) {
+        if (zone == null) {
+            return false;
+        }
+        if (zone.getZoneType() != null && !zone.getZoneType().isBlank()) {
+            return ZONE_TYPE_DOUBLE_LANE.equals(zone.getZoneType());
+        }
+        return isLegacyAisleName(zone.getAreaNumber());
+    }
+
+    private boolean isDoubleLaneZoneName(String zoneName) {
+        return parkingZoneRepository.findByAreaNumber(zoneName.trim())
+                .map(this::isDoubleLaneZone)
+                .orElseGet(() -> isLegacyAisleName(zoneName));
+    }
+
+    private boolean isLegacyAisleName(String areaNumber) {
+        return areaNumber != null && (areaNumber.contains("통로") || areaNumber.matches(".*a-b1-00[789].*"));
     }
 
     private boolean isNormalZone(ParkingZoneEntity zone) {
