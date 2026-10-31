@@ -54,6 +54,7 @@ public class PythonGateService {
     private final ManagerNotificationService managerNotificationService;
     private final AppResidentFeatureService appResidentFeatureService;
     private final AppNotificationRepository appNotificationRepository;
+    private final PlateCorrectionReviewService plateCorrectionReviewService;
 
     @Transactional
     public Map<String, Object> checkPlate(String plate, Integer apartmentNo) {
@@ -193,6 +194,8 @@ public class PythonGateService {
         history.setPlate(plate);
         history.setResidentVehicle(findResidentVehicle(plate));
         history.setVisitorVehicle(registeredCarRepository.findFirstByNumberAndParkedAtIsNull(plate).orElse(null));
+        // 관리자 확인을 기다리던 검토 항목이 있으면 차단기 번호로 정해졌으므로 자동 처리합니다.
+        plateCorrectionReviewService.resolveByPlate(history, plate);
 
         ParkingZoneEntity zone = history.getParkingZone();
         if (zone != null) {

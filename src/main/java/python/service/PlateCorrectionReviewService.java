@@ -31,6 +31,12 @@ public class PlateCorrectionReviewService {
 
     private static final String STATUS_NEEDS_REVIEW = "NEEDS_REVIEW";
     private static final String STATUS_CONFIRMED = "CONFIRMED";
+    // 관리자가 확정하기 전에 차단기 역추적·재인식으로 번호가 정해진 경우
+    private static final String STATUS_AUTO_RESOLVED = "AUTO_RESOLVED";
+    // 확정 전에 차량이 출차해서 더 이상 확인할 필요가 없는 경우
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String HISTORY_PARKED = "PARKED";
+    private static final String UNKNOWN_PLATE = "UNKNOWN";
     private static final String REFERENCE_TYPE = "plate_correction_review";
 
     private final PlateCorrectionReviewRepository reviewRepository;
@@ -94,6 +100,9 @@ public class PlateCorrectionReviewService {
         PlateCorrectionReviewEntity review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "번호판 검토 기록을 찾을 수 없습니다."));
         validateSameApartment(manager, review);
+        if (!STATUS_NEEDS_REVIEW.equals(review.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 처리된 번호판 검토 항목입니다.");
+        }
 
         String normalizedPlate = normalizePlate(plate);
         if (normalizedPlate == null) {
@@ -111,16 +120,20 @@ public class PlateCorrectionReviewService {
         history.setResidentVehicle(residentVehicle);
         history.setVisitorVehicle(visitorVehicle);
 
-        ParkingZoneEntity zone = history.getParkingZone();
-        if (zone != null) {
-            zone.setCurrentCarNumber(normalizedPlate);
-            zone.setStatusChangeReason("관리자 번호판 보정 확정");
-        }
+        // 아직 주차 중인 이력일 때만 주차면 번호를 바꾼다.
+        // 이미 출차했다면 그 칸에는 다른 차가 있거나 비어 있으므로 이력만 고친다.
+        if (isActive(history)) {
+            ParkingZoneEntity zone = history.getParkingZone();
+            if (zone != null) {
+                zone.setCurrentCarNumber(normalizedPlate);
+                zone.setStatusChangeReason("관리자 번호판 보정 확정");
+            }
 
-        ParkingZoneEntity linkedZone = findLinkedZone(history);
-        if (linkedZone != null) {
-            linkedZone.setCurrentCarNumber(normalizedPlate);
-            linkedZone.setStatusChangeReason("관리자 번호판 보정 확정");
+            ParkingZoneEntity linkedZone = findLinkedZone(history);
+            if (linkedZone != null) {
+                linkedZone.setCurrentCarNumber(normalizedPlate);
+                linkedZone.setStatusChangeReason("관리자 번호판 보정 확정");
+            }
         }
 
         review.setSelectedPlate(normalizedPlate);
@@ -135,6 +148,39 @@ public class PlateCorrectionReviewService {
         response.put("zone", history.getZoneSnapshot());
         response.put("plate", normalizedPlate);
         return response;
+    }
+
+    @Transactional
+    public void resolveByPlate(ParkingHistoryEntity history, String plate) {
+        // 차단기 역추적이나 재인식으로 번호가 정해지면 남아 있는 검토 항목을 자동 처리한다.
+        String normalizedPlate = normalizePlate(plate);
+        if (normalizedPlate == null || UNKNOWN_PLATE.equals(normalizedPlate)) {
+            return;
+        }
+        closePendingReview(history, STATUS_AUTO_RESOLVED, normalizedPlate);
+    }
+
+    @Transactional
+    public void cancelPendingReview(ParkingHistoryEntity history) {
+        // 확정 전에 출차하면 검토 목록에서 내린다.
+        closePendingReview(history, STATUS_CANCELLED, null);
+    }
+
+    private void closePendingReview(ParkingHistoryEntity history, String status, String selectedPlate) {
+        if (history == null || history.getId() == null) {
+            return;
+        }
+        reviewRepository.findByParkingHistory_IdAndStatus(history.getId(), STATUS_NEEDS_REVIEW)
+                .forEach(review -> {
+                    review.setSelectedPlate(selectedPlate);
+                    review.setStatus(status);
+                    review.setResolvedAt(LocalDateTime.now());
+                    managerNotificationService.markReferenceAsRead(review.getApartment(), REFERENCE_TYPE, review.getNo());
+                });
+    }
+
+    private boolean isActive(ParkingHistoryEntity history) {
+        return HISTORY_PARKED.equals(history.getStatus()) && history.getExitTime() == null;
     }
 
     private ApartmentManagerEntity findManager(Integer managerNo) {

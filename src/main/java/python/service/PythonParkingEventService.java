@@ -173,6 +173,16 @@ public class PythonParkingEventService {
         ParkingHistoryEntity history = findActiveHistory(zone);
 
         LocalDateTime exitTime = parseDateTime(requestDto.getExitTime());
+        // FastAPI 출차 확인 작업은 처음 출차 시각 그대로 출차를 재전송한다.
+        // 그 사이 같은 칸에 새 차가 들어왔다면 새 차를 출차시키지 않도록 무시한다.
+        if (hasText(requestDto.getExitTime())
+                && history.getEntryTime() != null
+                && exitTime.isBefore(history.getEntryTime())) {
+            Map<String, Object> ignored = result("exit", zone, history);
+            ignored.put("result", "ignored");
+            ignored.put("reason", "출차 시각이 현재 차량 입차 시각보다 이전");
+            return ignored;
+        }
         history.setExitTime(exitTime);
         history.setStatus(HISTORY_EXITED);
 
@@ -194,6 +204,8 @@ public class PythonParkingEventService {
                 "parking_history",
                 history.getId()
         );
+        // 확정 전에 나간 차의 번호판 검토 항목은 목록에서 내립니다.
+        plateCorrectionReviewService.cancelPendingReview(history);
 
         return result("exit", zone, history);
     }
@@ -226,7 +238,12 @@ public class PythonParkingEventService {
         }
         sendParkingCompleteNotificationIfNeeded(zone, previousPlate, residentVehicle);
         // 보정 결과도 확신이 낮으면 관리자 검토 목록에 남겨 최종 확인을 받습니다.
-        recordCorrectionReviewIfNeeded(requestDto, history, zone);
+        // 확실한 번호가 들어오면 남아 있던 검토 항목은 자동 처리합니다.
+        if (Boolean.TRUE.equals(requestDto.getNeedsReview())) {
+            recordCorrectionReviewIfNeeded(requestDto, history, zone);
+        } else {
+            plateCorrectionReviewService.resolveByPlate(history, plate);
+        }
 
         return result("update", zone, history);
     }
@@ -288,6 +305,10 @@ public class PythonParkingEventService {
             return PARK_TYPE_DOUBLE_LANE;
         }
         return PARK_TYPE_NORMAL;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String normalizeLinkedZone(String linkedZone) {
