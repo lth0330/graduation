@@ -129,11 +129,12 @@ public class PythonParkingEventService {
 
         zone.setStatus(STATUS_OCCUPIED);
         zone.setCurrentCarNumber(plate);
-        zone.setStatusChangeReason("Python 객체인식 입차 이벤트");
+        // 사유는 관리자가 직접 바꿀 때만 적는다. 입차·출차 때는 이전 차의 관리자 메모가 남지 않게 비운다.
+        zone.setStatusChangeReason(null);
         if (linkedZone != null) {
             linkedZone.setStatus(STATUS_OCCUPIED);
             linkedZone.setCurrentCarNumber(plate);
-            linkedZone.setStatusChangeReason("Python 객체인식 연결 주차칸 점유");
+            linkedZone.setStatusChangeReason(null);
         }
         synchronizeUsedSpaces(zone, linkedZone);
 
@@ -188,12 +189,12 @@ public class PythonParkingEventService {
 
         zone.setStatus(STATUS_EMPTY);
         zone.setCurrentCarNumber(null);
-        zone.setStatusChangeReason("Python 객체인식 출차 이벤트");
+        zone.setStatusChangeReason(null);
         ParkingZoneEntity linkedZone = findLinkedZoneForExit(history);
         if (linkedZone != null) {
             linkedZone.setStatus(STATUS_EMPTY);
             linkedZone.setCurrentCarNumber(null);
-            linkedZone.setStatusChangeReason("Python 객체인식 연결 주차칸 출차");
+            linkedZone.setStatusChangeReason(null);
         }
         synchronizeUsedSpaces(zone, linkedZone);
 
@@ -230,11 +231,9 @@ public class PythonParkingEventService {
         }
 
         zone.setCurrentCarNumber(plate);
-        zone.setStatusChangeReason("Python 객체인식 번호판 업데이트");
         ParkingZoneEntity linkedZone = findLinkedZoneForExit(history);
         if (linkedZone != null) {
             linkedZone.setCurrentCarNumber(plate);
-            linkedZone.setStatusChangeReason("Python 객체인식 연결 주차칸 번호판 업데이트");
         }
         sendParkingCompleteNotificationIfNeeded(zone, previousPlate, residentVehicle);
         // 보정 결과도 확신이 낮으면 관리자 검토 목록에 남겨 최종 확인을 받습니다.

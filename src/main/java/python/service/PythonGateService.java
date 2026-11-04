@@ -215,7 +215,6 @@ public class PythonGateService {
         ParkingZoneEntity zone = history.getParkingZone();
         if (zone != null) {
             zone.setCurrentCarNumber(plate);
-            zone.setStatusChangeReason("차단기 인식 번호판 자동 매칭");
 
             // =========================================================
             // 💡 1. 구역별 알림 지능형 분기 처리
