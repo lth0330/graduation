@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import app.entity.RegisteredCarEntity;
@@ -14,8 +15,10 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 import web.aptManager.entity.ApartmentEntity;
+import web.common.type.ApprovalStatus;
 import web.inquiry.repository.ResidentInquiryRepository;
 import web.parking.dto.VehicleOwnerDto;
+import web.parking.dto.VehicleSaveRequestDto;
 import web.parking.entity.ResidentVehicleEntity;
 import web.parking.repository.ResidentVehicleRepository;
 import web.resident.entity.ResidentEntity;
@@ -141,5 +144,74 @@ class VehicleManagementServiceTest {
         );
 
         assertThat(exception.getStatusCode().value()).isEqualTo(403);
+    }
+
+    @Test
+    void createStoresCarNumberWithoutSpaces() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        ResidentRepository residentRepository = mock(ResidentRepository.class);
+        VehicleManagementService service = new VehicleManagementService(
+                residentVehicleRepository,
+                residentRepository,
+                mock(ResidentInquiryRepository.class),
+                mock(RegisteredCarRepository.class)
+        );
+        ResidentEntity resident = ResidentEntity.builder()
+                .no(15)
+                .apartment(ApartmentEntity.builder().no(1).build())
+                .name("홍길동")
+                .dong("101")
+                .ho("1001")
+                .approvalStatus(ApprovalStatus.APPROVED)
+                .build();
+        VehicleSaveRequestDto request = new VehicleSaveRequestDto();
+        request.setOwnerId(15);
+        request.setCarNumber(" 123가 4567 ");
+        request.setCarType("모닝");
+        when(residentVehicleRepository.findFirstByCompactNumber("123가4567")).thenReturn(Optional.empty());
+        when(residentRepository.findById(15)).thenReturn(Optional.of(resident));
+        when(residentVehicleRepository.save(any(ResidentVehicleEntity.class))).thenAnswer(call -> call.getArgument(0));
+
+        assertThat(service.create(request).getCarNumber()).isEqualTo("123가4567");
+    }
+
+    @Test
+    void createRejectsSameNumberWrittenWithSpaces() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        VehicleManagementService service = new VehicleManagementService(
+                residentVehicleRepository,
+                mock(ResidentRepository.class),
+                mock(ResidentInquiryRepository.class),
+                mock(RegisteredCarRepository.class)
+        );
+        VehicleSaveRequestDto request = new VehicleSaveRequestDto();
+        request.setOwnerId(15);
+        request.setCarNumber("123가4567");
+        request.setCarType("모닝");
+        when(residentVehicleRepository.findFirstByCompactNumber("123가4567"))
+                .thenReturn(Optional.of(ResidentVehicleEntity.builder().no(1).number("123가 4567").build()));
+
+        assertThrows(ResponseStatusException.class, () -> service.create(request));
+    }
+
+    @Test
+    void updateStoresCarNumberWithoutSpacesAndKeepsOwnNumber() {
+        ResidentVehicleRepository residentVehicleRepository = mock(ResidentVehicleRepository.class);
+        VehicleManagementService service = new VehicleManagementService(
+                residentVehicleRepository,
+                mock(ResidentRepository.class),
+                mock(ResidentInquiryRepository.class),
+                mock(RegisteredCarRepository.class)
+        );
+        ResidentVehicleEntity vehicle = ResidentVehicleEntity.builder().no(15).number("123가 4567").build();
+        VehicleSaveRequestDto request = new VehicleSaveRequestDto();
+        request.setCarNumber("123가 4567");
+        request.setCarType("모닝");
+        when(residentVehicleRepository.findById(15)).thenReturn(Optional.of(vehicle));
+        when(residentVehicleRepository.findFirstByCompactNumber("123가4567")).thenReturn(Optional.of(vehicle));
+
+        service.update(15, request);
+
+        assertThat(vehicle.getNumber()).isEqualTo("123가4567");
     }
 }
