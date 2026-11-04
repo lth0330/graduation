@@ -23,7 +23,7 @@ import web.parking.repository.ParkingHistoryRepository;
 @RequiredArgsConstructor
 public class UnknownPlateReviewScheduler {
 
-    static final long WAIT_SECONDS = 20;
+    static final long WAIT_SECONDS = 15;
     private static final String UNKNOWN_PLATE = "UNKNOWN";
     private static final String HISTORY_PARKED = "PARKED";
 
