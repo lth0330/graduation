@@ -35,7 +35,7 @@ public class AppParkingService {
         item.put("slot", zone.getAreaNumber());
         item.put("status", zone.getStatus());
         item.put("isOccupied", isOccupied(zone.getStatus()));
-        item.put("current_car_number", zone.getCurrentCarNumber());
+        item.put("current_car_number", toAppCarNumber(zone));
         // 👇 [핵심 추가] 관리자가 웹에서 지정한 행(row)과 열(column) 위치를 앱으로 전달합니다!
         item.put("layout_row", zone.getLayoutRow());
         item.put("layout_column", zone.getLayoutColumn());
@@ -43,6 +43,17 @@ public class AppParkingService {
         item.put("layout_width", zone.getLayoutWidth());
         item.put("layout_height", zone.getLayoutHeight());
         return item;
+    }
+
+    // 관리자가 웹에서 '주차됨'·'사용 불가'로 바꾼 칸은 차 번호가 없다(null).
+    // 앱은 "칸 번호 == 내 차 번호"로 내 차를 찾는데, 차가 없는 입주민은 내 차 번호도 null이라
+    // null == null 로 그 칸이 '내 차'로 보였다 → 빈 칸이 아닌데 번호가 없으면 빈 글자를 보낸다.
+    private String toAppCarNumber(ParkingZoneEntity zone) {
+        String carNumber = zone.getCurrentCarNumber();
+        if (carNumber == null && zone.getStatus() != null && !"empty".equals(zone.getStatus())) {
+            return "";
+        }
+        return carNumber;
     }
 
     private boolean isAisle(String areaNumber) {
