@@ -246,6 +246,34 @@ class PlateCorrectionReviewServiceTest {
         verify(fixture.managerNotificationService).markReferenceAsRead(apartment, "plate_correction_review", 30);
     }
 
+    @Test
+    void unknownPlateWithoutCandidatesAsksManagerToEnterPlateDirectly() {
+        ServiceFixture fixture = new ServiceFixture();
+        ApartmentEntity apartment = ApartmentEntity.builder().no(1).name("테스트아파트").build();
+        ParkingHistoryEntity history = ParkingHistoryEntity.builder()
+                .id(12).zoneSnapshot("a-b1-008").plate("UNKNOWN").status("PARKED").build();
+        when(fixture.reviewRepository.save(any(PlateCorrectionReviewEntity.class)))
+                .thenAnswer(invocation -> {
+                    PlateCorrectionReviewEntity review = invocation.getArgument(0);
+                    review.setNo(31);
+                    return review;
+                });
+
+        PlateCorrectionReviewEntity result = fixture.service.recordNeedsReview(
+                apartment, history, "a-b1-008", "UNKNOWN", null, List.of(), null);
+
+        assertThat(result.getStatus()).isEqualTo("NEEDS_REVIEW");
+        assertThat(result.getCandidateList()).isEmpty();
+        verify(fixture.managerNotificationService).createApartmentNotification(
+                eq(apartment),
+                eq("plate_review_required"),
+                eq("번호판 확인 필요"),
+                contains("번호를 읽지 못했습니다"),
+                eq("plate_correction_review"),
+                eq(31)
+        );
+    }
+
     private static class ServiceFixture {
         private final PlateCorrectionReviewRepository reviewRepository = mock(PlateCorrectionReviewRepository.class);
         private final ManagerNotificationService managerNotificationService = mock(ManagerNotificationService.class);

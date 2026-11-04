@@ -17,4 +17,11 @@ public interface ParkingHistoryRepository extends JpaRepository<ParkingHistoryEn
     );
 
     List<ParkingHistoryEntity> findByPlateAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(String plate, String status);
+
+    // 번호 미확인(UNKNOWN)으로 일정 시간 넘게 주차 중인 기록 → 관리자 직접 입력 대상
+    List<ParkingHistoryEntity> findByPlateAndStatusAndExitTimeIsNullAndEntryTimeBefore(
+            String plate,
+            String status,
+            java.time.LocalDateTime entryTimeBefore
+    );
 }
