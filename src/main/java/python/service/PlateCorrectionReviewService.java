@@ -225,6 +225,13 @@ public class PlateCorrectionReviewService {
     }
 
     private String buildReviewMessage(PlateCorrectionReviewEntity review) {
+        boolean noCandidates = review.getCandidateList() == null || review.getCandidateList().isBlank();
+        if (noCandidates && (review.getOcrPlate() == null || UNKNOWN_PLATE.equals(review.getOcrPlate()))) {
+            return limit(
+                    review.getZone() + " 구역 차량 번호를 읽지 못했습니다. 사진이나 현장에서 번호를 확인한 뒤 직접 입력하세요.",
+                    255
+            );
+        }
         String candidates = review.getCandidateList() == null || review.getCandidateList().isBlank()
                 ? "후보 없음"
                 : review.getCandidateList();
