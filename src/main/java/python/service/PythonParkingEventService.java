@@ -43,6 +43,7 @@ public class PythonParkingEventService {
 
     private static final String STATUS_EMPTY = "empty";
     private static final String STATUS_OCCUPIED = "occupied";
+    private static final String STATUS_DISABLED = "disabled";
     private static final String ZONE_TYPE_NORMAL = "normal";
     private static final String ZONE_TYPE_DOUBLE_LANE = "double_lane";
     private static final String PARK_TYPE_NORMAL = "normal";
@@ -115,7 +116,9 @@ public class PythonParkingEventService {
         validateZone(requestDto != null ? requestDto.getZone() : null);
         ParkingZoneEntity zone = findZone(requestDto.getZone());
 
-        if (STATUS_OCCUPIED.equals(zone.getStatus())) {
+        // 카메라가 기록한 차가 아직 있으면 중복 입차로 거절한다.
+        // 관리자가 웹에서 '주차됨'으로만 바꿔 둔 칸(주차 기록 없음)은 실제 차가 들어온 것이므로 받는다.
+        if (STATUS_OCCUPIED.equals(zone.getStatus()) && hasActiveHistory(zone)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 주차 중인 구역입니다.");
         }
 
@@ -127,14 +130,11 @@ public class PythonParkingEventService {
         ResidentVehicleEntity residentVehicle = findResidentVehicle(plate);
         RegisteredCarEntity visitorVehicle = findVisitorVehicle(plate);
 
-        zone.setStatus(STATUS_OCCUPIED);
-        zone.setCurrentCarNumber(plate);
         // 사유는 관리자가 직접 바꿀 때만 적는다. 입차·출차 때는 이전 차의 관리자 메모가 남지 않게 비운다.
-        zone.setStatusChangeReason(null);
+        // 단, 관리자가 '사용 불가'로 지정한 칸은 차가 들어와도 사용 불가와 그 사유를 유지한다(기록은 남김).
+        applyEntryToZone(zone, plate);
         if (linkedZone != null) {
-            linkedZone.setStatus(STATUS_OCCUPIED);
-            linkedZone.setCurrentCarNumber(plate);
-            linkedZone.setStatusChangeReason(null);
+            applyEntryToZone(linkedZone, plate);
         }
         synchronizeUsedSpaces(zone, linkedZone);
 
@@ -158,7 +158,7 @@ public class PythonParkingEventService {
         ParkingHistoryEntity savedHistory = parkingHistoryRepository.save(history);
 
         // 앱 주차 화면에서 사용하는 상태도 같은 이벤트 기준으로 맞춰 줍니다.
-        appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_OCCUPIED, zone, linkedZone));
+        appResidentFeatureService.updateParking(buildParkingUpdateRequest(zone, linkedZone));
 
         // OCR 결과가 불확실하면 관리자가 번호판을 확정할 수 있도록 검토 대기 데이터를 만듭니다.
         recordCorrectionReviewIfNeeded(requestDto, savedHistory, zone);
@@ -187,18 +187,15 @@ public class PythonParkingEventService {
         history.setExitTime(exitTime);
         history.setStatus(HISTORY_EXITED);
 
-        zone.setStatus(STATUS_EMPTY);
-        zone.setCurrentCarNumber(null);
-        zone.setStatusChangeReason(null);
+        applyExitToZone(zone);
         ParkingZoneEntity linkedZone = findLinkedZoneForExit(history);
         if (linkedZone != null) {
-            linkedZone.setStatus(STATUS_EMPTY);
-            linkedZone.setCurrentCarNumber(null);
-            linkedZone.setStatusChangeReason(null);
+            applyExitToZone(linkedZone);
         }
         synchronizeUsedSpaces(zone, linkedZone);
 
-        appResidentFeatureService.updateParking(buildParkingUpdateRequest(STATUS_EMPTY, zone, linkedZone));
+        // 사용 불가 칸은 'disabled' 그대로 보내서 앱 대기자 빈자리 알림(예약)이 걸리지 않게 한다.
+        appResidentFeatureService.updateParking(buildParkingUpdateRequest(zone, linkedZone));
         // 출차가 확인되면 해당 주차 이력에 묶인 관리자 알림은 더 이상 처리 대상이 아니므로 읽음 처리합니다.
         managerNotificationService.markReferenceAsRead(
                 resolveApartment(zone),
@@ -436,15 +433,39 @@ public class PythonParkingEventService {
                 || ZONE_TYPE_NORMAL.equals(zone.getZoneType()));
     }
 
+    private boolean hasActiveHistory(ParkingZoneEntity zone) {
+        return zone.getNo() != null && parkingHistoryRepository
+                .findFirstByParkingZone_NoAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(zone.getNo(), HISTORY_PARKED)
+                .isPresent();
+    }
+
+    private void applyEntryToZone(ParkingZoneEntity zone, String plate) {
+        zone.setCurrentCarNumber(plate);
+        if (STATUS_DISABLED.equals(zone.getStatus())) {
+            return;
+        }
+        zone.setStatus(STATUS_OCCUPIED);
+        zone.setStatusChangeReason(null);
+    }
+
+    private void applyExitToZone(ParkingZoneEntity zone) {
+        zone.setCurrentCarNumber(null);
+        if (STATUS_DISABLED.equals(zone.getStatus())) {
+            return;
+        }
+        zone.setStatus(STATUS_EMPTY);
+        zone.setStatusChangeReason(null);
+    }
+
+    // 앱 주차 상태는 각 칸에 방금 적용한 상태(occupied/empty, 또는 유지된 disabled)를 그대로 보낸다.
     private AppParkingUpdateRequestDto buildParkingUpdateRequest(
-            String status,
             ParkingZoneEntity zone,
             ParkingZoneEntity linkedZone
     ) {
         List<AppParkingUpdateItemDto> updates = new ArrayList<>();
-        updates.add(buildParkingUpdateItem(zone, status));
+        updates.add(buildParkingUpdateItem(zone, zone.getStatus()));
         if (linkedZone != null) {
-            updates.add(buildParkingUpdateItem(linkedZone, status));
+            updates.add(buildParkingUpdateItem(linkedZone, linkedZone.getStatus()));
         }
 
         AppParkingUpdateRequestDto requestDto = new AppParkingUpdateRequestDto();

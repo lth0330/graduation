@@ -428,6 +428,83 @@ class PythonParkingEventServiceTest {
         );
     }
 
+    @Test
+    void saveEntryAcceptsZoneThatAdminMarkedOccupiedWithoutParkingRecord() {
+        ServiceFixture fixture = new ServiceFixture();
+        ParkingZoneEntity zone = ParkingZoneEntity.builder()
+                .no(3).areaNumber("a-b1-003").status("occupied").zoneType("normal")
+                .statusChangeReason("관리자 메모")
+                .parkingLot(ParkingLotEntity.builder().no(1).usedSpaces(0).build())
+                .build();
+        when(fixture.parkingZoneRepository.findByAreaNumber("a-b1-003")).thenReturn(Optional.of(zone));
+        when(fixture.parkingHistoryRepository.findFirstByParkingZone_NoAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(3, "PARKED"))
+                .thenReturn(Optional.empty());
+        when(fixture.parkingHistoryRepository.save(any(ParkingHistoryEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PythonParkingEntryRequestDto requestDto = new PythonParkingEntryRequestDto();
+        requestDto.setZone("a-b1-003");
+        requestDto.setPlate("37나5209");
+        fixture.service.saveEntry(requestDto);
+
+        assertThat(zone.getStatus()).isEqualTo("occupied");
+        assertThat(zone.getCurrentCarNumber()).isEqualTo("37나5209");
+        assertThat(zone.getStatusChangeReason()).isNull();
+        verify(fixture.parkingHistoryRepository).save(any(ParkingHistoryEntity.class));
+    }
+
+    @Test
+    void saveEntryStillRejectsZoneWithActiveParkingRecord() {
+        ServiceFixture fixture = new ServiceFixture();
+        ParkingZoneEntity zone = ParkingZoneEntity.builder()
+                .no(3).areaNumber("a-b1-003").status("occupied").zoneType("normal").build();
+        when(fixture.parkingZoneRepository.findByAreaNumber("a-b1-003")).thenReturn(Optional.of(zone));
+        when(fixture.parkingHistoryRepository.findFirstByParkingZone_NoAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(3, "PARKED"))
+                .thenReturn(Optional.of(ParkingHistoryEntity.builder().id(1).status("PARKED").build()));
+
+        PythonParkingEntryRequestDto requestDto = new PythonParkingEntryRequestDto();
+        requestDto.setZone("a-b1-003");
+        requestDto.setPlate("37나5209");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> fixture.service.saveEntry(requestDto))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    }
+
+    @Test
+    void disabledZoneKeepsDisabledStatusAndReasonOnEntryAndExit() {
+        ServiceFixture fixture = new ServiceFixture();
+        ParkingZoneEntity zone = ParkingZoneEntity.builder()
+                .no(5).areaNumber("a-b1-005").status("disabled").zoneType("normal")
+                .statusChangeReason("시설 점검")
+                .parkingLot(ParkingLotEntity.builder().no(1).usedSpaces(0).build())
+                .build();
+        when(fixture.parkingZoneRepository.findByAreaNumber("a-b1-005")).thenReturn(Optional.of(zone));
+        when(fixture.parkingHistoryRepository.save(any(ParkingHistoryEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PythonParkingEntryRequestDto entry = new PythonParkingEntryRequestDto();
+        entry.setZone("a-b1-005");
+        entry.setPlate("42바3579");
+        fixture.service.saveEntry(entry);
+
+        assertThat(zone.getStatus()).isEqualTo("disabled");
+        assertThat(zone.getStatusChangeReason()).isEqualTo("시설 점검");
+        assertThat(zone.getCurrentCarNumber()).isEqualTo("42바3579");
+
+        ParkingHistoryEntity history = ParkingHistoryEntity.builder()
+                .id(50).parkingZone(zone).plate("42바3579").status("PARKED").build();
+        when(fixture.parkingHistoryRepository.findFirstByParkingZone_NoAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(5, "PARKED"))
+                .thenReturn(Optional.of(history));
+        python.dto.PythonParkingExitRequestDto exit = new python.dto.PythonParkingExitRequestDto();
+        exit.setZone("a-b1-005");
+        fixture.service.saveExit(exit);
+
+        assertThat(zone.getStatus()).isEqualTo("disabled");
+        assertThat(zone.getStatusChangeReason()).isEqualTo("시설 점검");
+        assertThat(zone.getCurrentCarNumber()).isNull();
+        assertThat(history.getStatus()).isEqualTo("EXITED");
+    }
+
     private static class ServiceFixture {
         private final ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
         private final ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
