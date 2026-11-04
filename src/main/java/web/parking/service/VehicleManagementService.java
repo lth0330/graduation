@@ -66,7 +66,9 @@ public class VehicleManagementService {
         // Create: 승인된 입주민에 연결된 차량을 등록한다.
         validateCreateRequest(requestDto);
 
-        if (residentVehicleRepository.existsByNumber(requestDto.getCarNumber())) {
+        // 띄어쓰기는 빼고 저장한다. 카메라·앱은 "123가4567"처럼 붙여 쓴 번호로 비교하기 때문 (2026-11-04)
+        String carNumber = compactCarNumber(requestDto.getCarNumber());
+        if (residentVehicleRepository.findFirstByCompactNumber(carNumber).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
 
@@ -74,7 +76,7 @@ public class VehicleManagementService {
         validateHouseholdResidentCarLimit(resident);
         ResidentVehicleEntity vehicle = ResidentVehicleEntity.builder()
                 .name(resident.getName() + " 차량")
-                .number(requestDto.getCarNumber())
+                .number(carNumber)
                 .kind(requestDto.getCarType())
                 .note(requestDto.getNote())
                 .resident(resident)
@@ -89,11 +91,15 @@ public class VehicleManagementService {
         validateUpdateRequest(requestDto);
 
         ResidentVehicleEntity vehicle = findEntity(vehicleNo);
-        if (residentVehicleRepository.existsByNumberAndNoNot(requestDto.getCarNumber(), vehicleNo)) {
+        String carNumber = compactCarNumber(requestDto.getCarNumber());
+        boolean usedByOtherVehicle = residentVehicleRepository.findFirstByCompactNumber(carNumber)
+                .filter(found -> !vehicleNo.equals(found.getNo()))
+                .isPresent();
+        if (usedByOtherVehicle) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 차량번호입니다.");
         }
 
-        vehicle.setNumber(requestDto.getCarNumber());
+        vehicle.setNumber(carNumber);
         vehicle.setKind(requestDto.getCarType());
         vehicle.setNote(requestDto.getNote());
 
