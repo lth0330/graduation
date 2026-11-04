@@ -16,6 +16,7 @@ import app.repository.AppSettingRepository;
 import app.repository.DeviceInfoRepository;
 import app.repository.WaitingListRepository;
 import app.service.FcmService;
+import python.service.PlateCorrectionReviewService;
 import web.parking.dto.ParkingZoneDto;
 import web.parking.dto.ParkingZoneLayoutRequestDto;
 import web.parking.dto.ParkingZoneSaveRequestDto;
@@ -199,6 +200,36 @@ class ParkingZoneManagementServiceTest {
                 .isEqualTo(HttpStatus.CONFLICT);
     }
 
+    @Test
+    void adminChangingZoneToEmptyClosesLeftoverParkingRecord() {
+        ParkingZoneRepository parkingZoneRepository = mock(ParkingZoneRepository.class);
+        ParkingLotRepository parkingLotRepository = mock(ParkingLotRepository.class);
+        ParkingHistoryRepository parkingHistoryRepository = mock(ParkingHistoryRepository.class);
+        ParkingLotEntity parkingLot = ParkingLotEntity.builder().no(1).build();
+        ParkingZoneEntity zone = ParkingZoneEntity.builder()
+                .no(3).areaNumber("a-b1-003").status("occupied").currentCarNumber("37나5208")
+                .parkingLot(parkingLot).build();
+        ParkingHistoryEntity active = ParkingHistoryEntity.builder().id(9085).status("PARKED").build();
+        java.time.LocalDateTime oldExit = java.time.LocalDateTime.of(2026, 11, 4, 10, 0);
+        ParkingHistoryEntity old = ParkingHistoryEntity.builder().id(9000).status("EXITED").exitTime(oldExit).build();
+        when(parkingZoneRepository.findById(3)).thenReturn(Optional.of(zone));
+        when(parkingZoneRepository.findByParkingLot_No(1)).thenReturn(List.of(zone));
+        when(parkingHistoryRepository.findByParkingZone_NoOrderByEntryTimeDesc(3)).thenReturn(List.of(active, old));
+        when(parkingHistoryRepository.findFirstByParkingZone_NoAndStatusAndExitTimeIsNullOrderByEntryTimeDesc(any(), any()))
+                .thenReturn(Optional.empty());
+
+        web.parking.dto.ParkingZoneStatusRequestDto request = new web.parking.dto.ParkingZoneStatusRequestDto();
+        request.setStatus("empty");
+        request.setStatusChangeReason("현장 확인 결과 빈 칸");
+        createService(parkingZoneRepository, parkingLotRepository, parkingHistoryRepository).updateStatus(3, request);
+
+        assertThat(zone.getStatus()).isEqualTo("empty");
+        assertThat(zone.getCurrentCarNumber()).isNull();
+        assertThat(active.getStatus()).isEqualTo("EXITED");
+        assertThat(active.getExitTime()).isNotNull();
+        assertThat(old.getExitTime()).isEqualTo(oldExit);
+    }
+
     private ParkingZoneManagementService createService(
             ParkingZoneRepository parkingZoneRepository,
             ParkingLotRepository parkingLotRepository
@@ -219,7 +250,8 @@ class ParkingZoneManagementServiceTest {
                 mock(AppNotificationRepository.class),
                 mock(AppSettingRepository.class),
                 mock(DeviceInfoRepository.class),
-                mock(FcmService.class)
+                mock(FcmService.class),
+                mock(PlateCorrectionReviewService.class)
         );
     }
 }

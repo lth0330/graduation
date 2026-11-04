@@ -1,7 +1,9 @@
 package web.parking.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import python.service.PlateCorrectionReviewService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +37,8 @@ public class ParkingZoneManagementService {
     private static final int DEFAULT_LAYOUT_WIDTH = 2;
     private static final int DEFAULT_LAYOUT_HEIGHT = 1;
     private static final String HISTORY_PARKED = "PARKED";
+    private static final String HISTORY_EXITED = "EXITED";
+    private static final String HISTORY_EMPTY_STATUS = "empty";
 
     private final ParkingZoneRepository parkingZoneRepository;
     private final ParkingLotRepository parkingLotRepository;
@@ -46,6 +50,7 @@ public class ParkingZoneManagementService {
     private final AppSettingRepository settingRepository;
     private final DeviceInfoRepository deviceInfoRepository;
     private final FcmService fcmService;
+    private final PlateCorrectionReviewService plateCorrectionReviewService;
 
     public List<ParkingZoneDto> findParkingZones(Integer parkingLotNo) {
         // Read: 주차장 번호로 주차구역 목록을 조회한다.
@@ -108,6 +113,13 @@ public class ParkingZoneManagementService {
             parkingZone.setZoneType(normalizeZoneType(requestDto.getZoneType()));
         }
         parkingZone.setStatusChangeReason(requestDto.getStatusChangeReason());
+
+        // 관리자가 '빈자리'로 바꾸면 그 칸에 남아 있던 주차 기록을 출차로 정리한다.
+        // (정리하지 않으면 기록이 '주차 중'으로 남아 다음 차 입차가 중복으로 거절되거나 번호 미확인 알림이 계속 뜬다)
+        if (HISTORY_EMPTY_STATUS.equals(newStatus)) {
+            parkingZone.setCurrentCarNumber(null);
+            closeActiveHistories(parkingZone);
+        }
 
         // =================================================================
         // 💡 [핵심 4] 웹 관리자가 수동으로 'empty'로 바꿨을 때 알림 발송 로직!
@@ -330,6 +342,21 @@ public class ParkingZoneManagementService {
                 .statusChangeReason(parkingZone.getStatusChangeReason())
                 .imagePath(findActiveHistoryImagePath(parkingZone))
                 .build();
+    }
+
+    private void closeActiveHistories(ParkingZoneEntity parkingZone) {
+        if (parkingZone.getNo() == null) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        parkingHistoryRepository.findByParkingZone_NoOrderByEntryTimeDesc(parkingZone.getNo()).stream()
+                .filter(history -> HISTORY_PARKED.equals(history.getStatus()) && history.getExitTime() == null)
+                .forEach(history -> {
+                    history.setStatus(HISTORY_EXITED);
+                    history.setExitTime(now);
+                    // 확정 전이던 번호판 보정 항목도 목록에서 내린다.
+                    plateCorrectionReviewService.cancelPendingReview(history);
+                });
     }
 
     private String findActiveHistoryImagePath(ParkingZoneEntity parkingZone) {
