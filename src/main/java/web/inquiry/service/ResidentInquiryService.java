@@ -165,6 +165,21 @@ public class ResidentInquiryService {
         return toDto(inquiry);
     } // 👆 🚨 여기가 answer 함수 전체가 닫히는 곳입니다!
 
+    @Transactional
+    public void delete(Map<String, Object> principal, Integer inquiryNo) {
+        // Delete: 본인 아파트 문의만 삭제하고, 이 문의를 가리키는 미확인 관리자 알림은 읽음 처리한다.
+        ResidentInquiryEntity inquiry = findEntity(inquiryNo);
+        ApartmentManagerEntity manager = findManager(getInteger(principal, "userNo"));
+        validateManagerApartment(manager, inquiry);
+
+        managerNotificationService.markReferenceAsRead(
+                inquiry.getResident().getApartment(),
+                "resident_inquiry",
+                inquiry.getNo()
+        );
+        residentInquiryRepository.delete(inquiry);
+    }
+
     private void validateCreateRequest(ResidentInquiryCreateRequestDto requestDto) {
         if (requestDto == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "문의 정보를 입력하세요.");

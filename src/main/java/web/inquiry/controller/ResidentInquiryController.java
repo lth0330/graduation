@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,5 +58,15 @@ public class ResidentInquiryController {
             @RequestBody ResidentInquiryAnswerRequestDto requestDto
     ) {
         return ResponseEntity.ok(residentInquiryService.answer(principal, inquiryNo, requestDto));
+    }
+
+    @DeleteMapping("/api/resident-inquiries/{inquiryNo}")
+    // Delete: 아파트 관리자가 입주민 문의를 삭제한다.
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal Map<String, Object> principal,
+            @PathVariable Integer inquiryNo
+    ) {
+        residentInquiryService.delete(principal, inquiryNo);
+        return ResponseEntity.noContent().build();
     }
 }
